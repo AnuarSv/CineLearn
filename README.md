@@ -1,7 +1,7 @@
 # CineLearn
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/fluentuihighcontrast.svg" width="100" height="100">
+  <img src="assets/icon/icon.jpg" width="120" height="120" style="border-radius: 24px">
 </p>
 
 ## Releases
