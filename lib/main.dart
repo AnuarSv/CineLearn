@@ -6,30 +6,45 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'app/app.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Hive for local settings
-  await Hive.initFlutter();
-  
-  // Set preferred orientations
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  
-  // Set system UI overlay style
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ),
-  );
-  
-  runApp(
-    const ProviderScope(
-      child: CineLearnApp(),
-    ),
-  );
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    
+    // Initialize Hive for local settings
+    await Hive.initFlutter();
+    
+    // Set preferred orientations
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    
+    // Set system UI overlay style
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.dark,
+      ),
+    );
+    
+    runApp(
+      const ProviderScope(
+        child: CineLearnApp(),
+      ),
+    );
+  } catch (e, stackTrace) {
+    debugPrint('FATAL ERROR DURING INIT: $e');
+    debugPrint(stackTrace.toString());
+    // Still try to run the app to show something if possible, or at least it won't be a silent hang
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SelectableText('Initialization Error: $e\n\n$stackTrace'),
+          ),
+        ),
+      )
+    );
+  }
 }
