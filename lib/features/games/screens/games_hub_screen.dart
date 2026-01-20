@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/theme/colors.dart';
 import '../../../app/theme/app_theme.dart';
 
@@ -56,36 +57,36 @@ class GamesHubScreen extends StatelessWidget {
                     title: 'Listening Quiz',
                     description: 'Identify words you hear',
                     color: AppColors.accent,
-                    wordsCount: 0,
+                    wordsCount: 10,
                     isDark: isDark,
-                    onTap: () => _showComingSoon(context),
+                    onTap: () => context.push('/games/listening'),
                   ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1),
                   _GameCard(
                     icon: Icons.extension_rounded,
                     title: 'Word Puzzle',
                     description: 'Arrange letters correctly',
                     color: AppColors.success,
-                    wordsCount: 0,
+                    wordsCount: 10,
                     isDark: isDark,
-                    onTap: () => _showComingSoon(context),
+                    onTap: () => context.push('/games/puzzle'),
                   ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1),
                   _GameCard(
                     icon: Icons.edit_rounded,
                     title: 'Fill the Blank',
                     description: 'Complete sentences',
                     color: AppColors.warning,
-                    wordsCount: 0,
+                    wordsCount: 10,
                     isDark: isDark,
-                    onTap: () => _showComingSoon(context),
+                    onTap: () => context.push('/games/fill'),
                   ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1),
                   _GameCard(
                     icon: Icons.compare_arrows_rounded,
                     title: 'Match Game',
                     description: 'Match words to definitions',
                     color: AppColors.error,
-                    wordsCount: 0,
+                    wordsCount: 10,
                     isDark: isDark,
-                    onTap: () => _showComingSoon(context),
+                    onTap: () => context.push('/games/match'),
                   ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.1),
                 ]),
               ),

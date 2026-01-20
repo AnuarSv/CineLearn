@@ -31,6 +31,7 @@ class AppColors {
 
   // Text
   static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textMain = Color(0xFF2D3436); // Dark text for light mode
   static const Color textSecondary = Color(0xFFB3B3B3);
   static const Color textTertiary = Color(0xFF666666);
   

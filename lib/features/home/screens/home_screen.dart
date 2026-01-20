@@ -79,12 +79,12 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const SizedBox(width: AppTheme.spacingM),
                     Expanded(
-                      child: const _StatCard(
+                      child: _StatCard(
                         icon: Icons.local_fire_department_rounded,
                         value: '0',
                         label: 'Day Streak',
                         color: AppColors.warning,
-                        isDark: false, // will fix later
+                        isDark: isDark,
                       ).animate().fadeIn(delay: 300.ms).scale(begin: const Offset(0.9, 0.9)),
                     ),
                   ],
