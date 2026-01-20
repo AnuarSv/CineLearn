@@ -8,6 +8,10 @@ import '../../features/vocabulary/screens/flashcard_screen.dart';
 import '../../features/reels/screens/reels_screen.dart';
 import '../../features/games/screens/games_hub_screen.dart';
 import '../../features/player/screens/video_player_screen.dart';
+import '../../features/games/screens/listening_quiz_screen.dart';
+import '../../features/games/screens/word_puzzle_screen.dart';
+import '../../features/games/screens/fill_blank_screen.dart';
+import '../../features/games/screens/match_game_screen.dart';
 import '../shell/app_shell.dart';
 
 /// App router configuration using GoRouter
@@ -77,6 +81,39 @@ class AppRouter {
           child: FlashcardScreen(),
         ),
       ),
+      // Game Routes
+      GoRoute(
+        path: '/games/listening',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => const MaterialPage(
+          fullscreenDialog: true,
+          child: ListeningQuizScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/games/puzzle',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => const MaterialPage(
+          fullscreenDialog: true,
+          child: WordPuzzleScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/games/fill',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => const MaterialPage(
+          fullscreenDialog: true,
+          child: FillBlankScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/games/match',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => const MaterialPage(
+          fullscreenDialog: true,
+          child: MatchGameScreen(),
+        ),
+      ),
     ],
   );
 }
@@ -90,4 +127,8 @@ class AppRoutes {
   static const games = '/games';
   static String player(String videoId) => '/player/$videoId';
   static const flashcards = '/flashcards';
+  static const listeningQuiz = '/games/listening';
+  static const wordPuzzle = '/games/puzzle';
+  static const fillBlank = '/games/fill';
+  static const matchGame = '/games/match';
 }
