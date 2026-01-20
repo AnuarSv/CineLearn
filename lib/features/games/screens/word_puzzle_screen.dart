@@ -1,10 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/colors.dart';
-import '../../../app/theme/app_theme.dart';
 import '../../../core/providers/providers.dart';
 import '../../../data/database/app_database.dart';
 
@@ -15,23 +15,19 @@ class WordPuzzleScreen extends ConsumerStatefulWidget {
   ConsumerState<WordPuzzleScreen> createState() => _WordPuzzleScreenState();
 }
 
-class _WordPuzzleScreenState extends ConsumerState<WordPuzzleScreen> {
-  List<VocabularyWord> _quizWords = [];
+class _WordPuzzleScreenState extends ConsumerState<WordPuzzleScreen> with TickerProviderStateMixin {
+  List<VocabularyWord> _words = [];
   int _currentIndex = 0;
   int _score = 0;
   bool _isLoading = true;
-  bool _isSuccess = false;
-  bool _isError = false;
+  bool _hasWon = false;
+  bool _hasLost = false;
 
   late VocabularyWord _targetWord;
-  List<String> _targetChars = [];
-  List<String?> _slots = []; // Null means empty
-  List<String?> _pool = []; // Null means used in slot
-
-  // Mapping to track which pool index moved to which slot index could be complex.
-  // Simpler approach: 
-  // - _poolItems: List of {char, id, isUsed}
-  // - _slotItems: List of {char, id} (or null)
+  List<String> _shuffledLetters = [];
+  List<String?> _slots = [];
+  int _attempts = 0;
+  static const int _maxAttempts = 3;
 
   @override
   void initState() {
@@ -42,135 +38,133 @@ class _WordPuzzleScreenState extends ConsumerState<WordPuzzleScreen> {
   Future<void> _loadWords() async {
     final database = ref.read(databaseProvider);
     final allWords = await database.getAllVocabulary();
-    
-    // Filter words with definitions and reasonable length
-    final playableWords = allWords.where((w) {
-      final clean = w.word.trim();
-      return clean.length >= 3 && clean.length <= 10 && w.definition != null;
-    }).toList();
 
-    if (playableWords.length < 3) {
+    if (allWords.length < 2) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
 
-    playableWords.shuffle();
-    _quizWords = playableWords.take(10).toList();
-    
-    _setupQuestion();
-    
+    allWords.shuffle();
+    _words = allWords.take(10).toList();
+    _setupPuzzle();
+
     if (mounted) setState(() => _isLoading = false);
   }
 
-  void _setupQuestion() {
-    if (_currentIndex >= _quizWords.length) return;
+  void _setupPuzzle() {
+    if (_currentIndex >= _words.length) return;
 
-    _targetWord = _quizWords[_currentIndex];
-    final cleanWord = _targetWord.word.trim().toUpperCase();
-    _targetChars = cleanWord.split('');
-    _slots = List.filled(_targetChars.length, null);
-    
-    // Create pool
-    _pool = List.from(_targetChars);
-    _pool.shuffle();
-    
-    _isSuccess = false;
-    _isError = false;
+    _targetWord = _words[_currentIndex];
+    _shuffledLetters = _targetWord.word.toUpperCase().split('')..shuffle();
+    _slots = List.filled(_targetWord.word.length, null);
+    _hasWon = false;
+    _hasLost = false;
+    _attempts = 0;
   }
 
-  void _onPoolTap(int index) {
-    if (_isSuccess || _pool[index] == null) return;
-    
+  void _onLetterTap(int letterIndex) {
+    if (_hasWon || _hasLost) return;
+
     // Find first empty slot
-    final emptySlotIndex = _slots.indexOf(null);
-    if (emptySlotIndex != -1) {
-      setState(() {
-        _slots[emptySlotIndex] = _pool[index];
-        _pool[index] = null; // Mark as used
-        _isError = false;
-      });
-      _checkCompletion();
-    }
-  }
+    final slotIndex = _slots.indexOf(null);
+    if (slotIndex == -1) return;
 
-  void _onSlotTap(int index) {
-    if (_isSuccess || _slots[index] == null) return;
+    HapticFeedback.lightImpact();
 
-    // Return to pool (we need to find the original slot or just any null slot in pool?
-    // Actually, since pool is position-based, we need to know WHICH pool item this was.
-    // Simpler: Just put it back into the first null spot in pool matching the char? 
-    // Or just put it back into ANY null spot in pool?
-    // User expects it to go back to where it came from usually, but just filling any gap is okay for MVP.
-    // Better: Reconstruct the pool list logic effectively.
-    
-    final charToReturn = _slots[index];
-    final emptyPoolIndex = _pool.indexOf(null);
-    
-    if (emptyPoolIndex != -1) {
-      setState(() {
-        _pool[emptyPoolIndex] = charToReturn;
-        _slots[index] = null;
-        _isError = false;
-      });
-    }
-  }
+    setState(() {
+      _slots[slotIndex] = _shuffledLetters[letterIndex];
+      _shuffledLetters[letterIndex] = '';
+    });
 
-  void _checkCompletion() {
+    // Check if complete
     if (!_slots.contains(null)) {
-      final formedWord = _slots.join('');
-      if (formedWord == _targetWord.word.trim().toUpperCase()) {
-        setState(() {
-          _isSuccess = true;
-          _score++;
-        });
-        Future.delayed(const Duration(milliseconds: 1500), _nextQuestion);
+      _checkAnswer();
+    }
+  }
+
+  void _onSlotTap(int slotIndex) {
+    if (_hasWon || _hasLost) return;
+    if (_slots[slotIndex] == null) return;
+
+    HapticFeedback.lightImpact();
+
+    // Return letter to pool
+    final letter = _slots[slotIndex]!;
+    final emptyIndex = _shuffledLetters.indexOf('');
+    
+    setState(() {
+      _slots[slotIndex] = null;
+      if (emptyIndex != -1) {
+        _shuffledLetters[emptyIndex] = letter;
+      }
+    });
+  }
+
+  void _checkAnswer() {
+    final answer = _slots.join('');
+    final correct = _targetWord.word.toUpperCase();
+
+    if (answer == correct) {
+      HapticFeedback.heavyImpact();
+      setState(() {
+        _hasWon = true;
+        _score++;
+      });
+      _nextWord(delay: const Duration(milliseconds: 1500));
+    } else {
+      _attempts++;
+      if (_attempts >= _maxAttempts) {
+        setState(() => _hasLost = true);
+        _nextWord(delay: const Duration(milliseconds: 2000));
       } else {
-         setState(() => _isError = true);
-         // Shake effect or red highlight handled in build
+        // Shake and reset
+        HapticFeedback.mediumImpact();
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            setState(() {
+              _shuffledLetters = _targetWord.word.toUpperCase().split('')..shuffle();
+              _slots = List.filled(_targetWord.word.length, null);
+            });
+          }
+        });
       }
     }
   }
 
-  void _nextQuestion() {
-    if (!mounted) return;
-    if (_currentIndex < _quizWords.length - 1) {
-      setState(() {
-        _currentIndex++;
-      });
-      _setupQuestion();
-    } else {
-      _showResults();
-    }
+  void _nextWord({Duration delay = Duration.zero}) {
+    Future.delayed(delay, () {
+      if (!mounted) return;
+      if (_currentIndex < _words.length - 1) {
+        setState(() => _currentIndex++);
+        _setupPuzzle();
+      } else {
+        _showResults();
+      }
+    });
   }
 
   void _showResults() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Puzzle Complete!'),
-        content: Text('You solved $_score out of ${_quizWords.length} words'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.pop();
-            },
-            child: const Text('Finish'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _currentIndex = 0;
-                _score = 0;
-                _isLoading = true;
-              });
-              _loadWords();
-            },
-            child: const Text('Play Again'),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      builder: (context) => _ResultsSheet(
+        score: _score,
+        total: _words.length,
+        onFinish: () {
+          Navigator.pop(context);
+          context.pop();
+        },
+        onRetry: () {
+          Navigator.pop(context);
+          setState(() {
+            _currentIndex = 0;
+            _score = 0;
+            _isLoading = true;
+          });
+          _loadWords();
+        },
       ),
     );
   }
@@ -179,143 +173,399 @@ class _WordPuzzleScreenState extends ConsumerState<WordPuzzleScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (_quizWords.isEmpty) {
+    if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('Not enough words to play.')),
+        backgroundColor: isDark ? const Color(0xFF0A0E21) : Colors.white,
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    final progress = (_currentIndex + 1) / _quizWords.length;
+    if (_words.isEmpty) {
+      return _EmptyState(isDark: isDark);
+    }
+
+    final progress = (_currentIndex + 1) / _words.length;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: AppBar(
-        title: const Text('Word Puzzle'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(4),
-          child: LinearProgressIndicator(
-            value: progress,
-            backgroundColor: isDark ? Colors.white10 : Colors.black12,
-            color: _isSuccess ? AppColors.success : AppColors.accent,
+      backgroundColor: isDark ? const Color(0xFF0A0E21) : const Color(0xFFF5F7FA),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [const Color(0xFF1A237E).withOpacity(0.3), const Color(0xFF0A0E21)]
+                : [const Color(0xFFE3F2FD), const Color(0xFFF5F7FA)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => context.pop(),
+                      icon: Icon(Icons.close, color: isDark ? Colors.white : Colors.black87),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.star, color: AppColors.primary, size: 18),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$_score',
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Progress
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    backgroundColor: isDark ? Colors.white10 : Colors.black12,
+                    color: AppColors.primary,
+                    minHeight: 6,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // Definition hint
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      if (!isDark)
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.lightbulb_outline,
+                        color: AppColors.accent,
+                        size: 28,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _targetWord.definition ?? 'Unscramble the word',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 1.5,
+                          color: isDark ? Colors.white70 : Colors.grey.shade700,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn().slideY(begin: -0.1),
+
+              const Spacer(),
+
+              // Answer slots
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List.generate(_slots.length, (index) {
+                    final letter = _slots[index];
+                    final isCorrect = _hasWon;
+                    final isWrong = _hasLost;
+
+                    return GestureDetector(
+                      onTap: () => _onSlotTap(index),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        width: 48,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: isCorrect
+                              ? AppColors.success
+                              : isWrong
+                                  ? AppColors.error
+                                  : (letter != null
+                                      ? (isDark ? AppColors.primary : AppColors.primary.withOpacity(0.9))
+                                      : (isDark ? Colors.white10 : Colors.white)),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: letter == null
+                                ? (isDark ? Colors.white24 : Colors.grey.shade300)
+                                : Colors.transparent,
+                            width: 2,
+                          ),
+                          boxShadow: letter != null
+                              ? [
+                                  BoxShadow(
+                                    color: (isCorrect ? AppColors.success : AppColors.primary)
+                                        .withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            letter ?? '',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: letter != null ? Colors.white : Colors.transparent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ).animate(delay: (index * 50).ms).scale(begin: const Offset(0.8, 0.8));
+                  }),
+                ),
+              ),
+
+              if (_hasLost) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Correct: ${_targetWord.word.toUpperCase()}',
+                  style: TextStyle(
+                    color: AppColors.error,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ).animate().fadeIn(),
+              ],
+
+              const Spacer(),
+
+              // Letter pool
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: List.generate(_shuffledLetters.length, (index) {
+                    final letter = _shuffledLetters[index];
+                    if (letter.isEmpty) {
+                      return const SizedBox(width: 52, height: 56);
+                    }
+
+                    return GestureDetector(
+                      onTap: () => _onLetterTap(index),
+                      child: Container(
+                        width: 52,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: isDark
+                                ? [const Color(0xFF2A2F4A), const Color(0xFF1A1F38)]
+                                : [Colors.white, Colors.grey.shade100],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark ? Colors.white10 : Colors.grey.shade200,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            letter,
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ).animate(delay: (index * 30).ms).fadeIn().scale(begin: const Offset(0.9, 0.9));
+                  }),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Attempts indicator
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(_maxAttempts, (index) {
+                  final isUsed = index < _attempts;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Icon(
+                      isUsed ? Icons.favorite : Icons.favorite_border,
+                      color: isUsed ? Colors.grey : AppColors.error,
+                      size: 24,
+                    ),
+                  );
+                }),
+              ),
+
+              const SizedBox(height: 32),
+            ],
           ),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const Spacer(flex: 1),
-            // Definition / Clue
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: AppTheme.shadowSmall,
-              ),
-              child: Column(
-                children: [
-                  const Text(
-                    'DEFINITION',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _targetWord.definition ?? 'No definition',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
-              ),
-            ).animate().fadeIn().slideY(begin: -0.2),
-            
-            const Spacer(flex: 2),
+    );
+  }
+}
 
-            // Slots
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: List.generate(_slots.length, (index) {
-                final char = _slots[index];
-                return GestureDetector(
-                  onTap: () => _onSlotTap(index),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: char != null 
-                          ? (_isSuccess ? AppColors.success : (_isError ? AppColors.error : AppColors.primary))
-                          : (isDark ? Colors.white10 : Colors.black12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                         color: char != null ? Colors.transparent : AppColors.textSecondary.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        char ?? '',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
+class _ResultsSheet extends StatelessWidget {
+  final int score;
+  final int total;
+  final VoidCallback onFinish;
+  final VoidCallback onRetry;
+
+  const _ResultsSheet({
+    required this.score,
+    required this.total,
+    required this.onFinish,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final percentage = (score / total * 100).round();
+
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A1F38) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            percentage >= 70 ? '🧩' : '🔤',
+            style: const TextStyle(fontSize: 64),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            percentage >= 70 ? 'Puzzle Master!' : 'Keep Practicing!',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
             ),
-
-            const Spacer(flex: 1),
-
-            // Pool
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 12,
-              children: List.generate(_pool.length, (index) {
-                final char = _pool[index];
-                return GestureDetector(
-                  onTap: () => _onPoolTap(index),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: char != null 
-                          ? (isDark ? AppColors.darkSurface : Colors.white)
-                          : Colors.transparent, // Hidden if used
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: char != null ? AppTheme.shadowSmall : null,
-                      border: char != null ? null : Border.all(color: Colors.transparent),
-                    ),
-                    child: char != null ? Center(
-                      child: Text(
-                        char,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : AppColors.textMain,
-                        ),
-                      ),
-                    ) : null,
-                  ),
-                );
-              }),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$score / $total correct',
+            style: TextStyle(
+              fontSize: 18,
+              color: isDark ? Colors.white60 : Colors.grey.shade600,
             ),
-            
-            const Spacer(flex: 2),
-            
-            if (_isSuccess)
-              const Text(
-                'CORRECT!',
-                style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 24),
-              ).animate().fadeIn().scale(),
-          ],
+          ),
+          const SizedBox(height: 32),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onFinish,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Done'),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: onRetry,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Play Again', style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final bool isDark;
+
+  const _EmptyState({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0A0E21) : Colors.white,
+      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.extension_outlined, size: 64, color: AppColors.primary),
+              const SizedBox(height: 24),
+              Text(
+                'No Words Yet',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Save some words to play Word Puzzle.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: isDark ? Colors.white54 : Colors.grey),
+              ),
+            ],
+          ),
         ),
       ),
     );

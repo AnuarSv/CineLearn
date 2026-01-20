@@ -29,6 +29,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final videosAsync = ref.watch(videosStreamProvider);
 
+    // Generate thumbnails for videos that don't have them
+    videosAsync.whenData((videos) => _generateMissingThumbnails(videos));
+
     return Scaffold(
       body: SafeArea(
         child: CustomScrollView(
@@ -151,12 +154,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           }
 
           final db = ref.read(databaseProvider);
+          final videoService = ref.read(videoProcessingServiceProvider);
           
+          // Generate thumbnail
+          final thumbnailPath = await videoService.generateThumbnail(file.path!);
+
           await db.upsertVideo(VideosCompanion(
             id: drift.Value(videoId),
             title: drift.Value(title),
             filePath: drift.Value(file.path!),
             subtitlePath: drift.Value(subtitlePath),
+            thumbnailPath: drift.Value(thumbnailPath),
             addedAt: drift.Value(DateTime.now().millisecondsSinceEpoch),
             durationMs: const drift.Value(0),
           ));
@@ -306,7 +314,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         .trim();
   }
 
-  Future<void> _deleteVideo(Video video) async {
+  void _deleteVideo(Video video) async {
     final db = ref.read(databaseProvider);
     await db.deleteVideo(video.id);
     
@@ -317,6 +325,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  void _generateMissingThumbnails(List<Video> videos) {
+    final videoService = ref.read(videoProcessingServiceProvider);
+    final db = ref.read(databaseProvider);
+    
+    for (final video in videos) {
+      if (video.thumbnailPath == null || !File(video.thumbnailPath!).existsSync()) {
+        videoService.generateThumbnail(video.filePath).then((path) {
+          if (path != null) {
+            db.upsertVideo(VideosCompanion(
+              id: drift.Value(video.id),
+              thumbnailPath: drift.Value(path),
+            ));
+          }
+        });
+      }
     }
   }
 }
@@ -453,15 +479,22 @@ class _VideoCard extends StatelessWidget {
                 borderRadius: const BorderRadius.horizontal(
                   left: Radius.circular(AppTheme.radiusMedium),
                 ),
+                image: video.thumbnailPath != null && File(video.thumbnailPath!).existsSync()
+                    ? DecorationImage(
+                        image: FileImage(File(video.thumbnailPath!)),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
               ),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  Icon(
-                    Icons.movie_outlined,
-                    size: 32,
-                    color: AppColors.textTertiary,
-                  ),
+                  if (video.thumbnailPath == null || !File(video.thumbnailPath!).existsSync())
+                    Icon(
+                      Icons.movie_outlined,
+                      size: 32,
+                      color: AppColors.textTertiary,
+                    ),
                   if (progress > 0)
                     Positioned(
                       bottom: 0,

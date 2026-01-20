@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import '../../data/database/app_database.dart';
 import '../services/oxford_dictionary_service.dart';
+import '../services/dictionary_cache_service.dart';
 import '../services/srt_parser_service.dart';
 import '../services/video_processing_service.dart';
 
@@ -12,11 +13,17 @@ final databaseProvider = Provider<AppDatabase>((ref) {
   return db;
 });
 
-/// Provider for the OxfordDictionaryService
+/// Provider for the OxfordDictionaryService (legacy, for compatibility)
 final dictionaryServiceProvider = Provider<OxfordDictionaryService>((ref) {
   final service = OxfordDictionaryService();
   ref.onDispose(() => service.dispose());
   return service;
+});
+
+/// Provider for the cached DictionaryCacheService (preferred - uses local cache)
+final dictionaryCacheServiceProvider = Provider<DictionaryCacheService>((ref) {
+  final db = ref.watch(databaseProvider);
+  return DictionaryCacheService(db);
 });
 
 /// Provider for the SrtParserService
