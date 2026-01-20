@@ -80,12 +80,39 @@ class AppSettings extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-@DriftDatabase(tables: [Videos, Subtitles, VocabularyWords, ReviewClips, AppSettings])
+/// Cached dictionary definitions - local cache for API responses
+class CachedDefinitions extends Table {
+  TextColumn get word => text()();
+  TextColumn get definition => text()();
+  TextColumn get partOfSpeech => text().nullable()();
+  TextColumn get phonetic => text().nullable()();
+  TextColumn get audioUrl => text().nullable()();
+  TextColumn get example => text().nullable()();
+  TextColumn get synonyms => text().nullable()(); // JSON array string
+  IntColumn get cachedAt => integer()();
+
+  @override
+  Set<Column> get primaryKey => {word};
+}
+
+@DriftDatabase(tables: [Videos, Subtitles, VocabularyWords, ReviewClips, AppSettings, CachedDefinitions])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (Migrator m) async {
+      await m.createAll();
+    },
+    onUpgrade: (Migrator m, int from, int to) async {
+      if (from < 2) {
+        await m.createTable(cachedDefinitions);
+      }
+    },
+  );
 
   // ============ VIDEO OPERATIONS ============
 

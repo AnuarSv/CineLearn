@@ -2714,6 +2714,534 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
   }
 }
 
+class $CachedDefinitionsTable extends CachedDefinitions
+    with TableInfo<$CachedDefinitionsTable, CachedDefinition> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CachedDefinitionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _wordMeta = const VerificationMeta('word');
+  @override
+  late final GeneratedColumn<String> word = GeneratedColumn<String>(
+    'word',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _definitionMeta = const VerificationMeta(
+    'definition',
+  );
+  @override
+  late final GeneratedColumn<String> definition = GeneratedColumn<String>(
+    'definition',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _partOfSpeechMeta = const VerificationMeta(
+    'partOfSpeech',
+  );
+  @override
+  late final GeneratedColumn<String> partOfSpeech = GeneratedColumn<String>(
+    'part_of_speech',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _phoneticMeta = const VerificationMeta(
+    'phonetic',
+  );
+  @override
+  late final GeneratedColumn<String> phonetic = GeneratedColumn<String>(
+    'phonetic',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _audioUrlMeta = const VerificationMeta(
+    'audioUrl',
+  );
+  @override
+  late final GeneratedColumn<String> audioUrl = GeneratedColumn<String>(
+    'audio_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _exampleMeta = const VerificationMeta(
+    'example',
+  );
+  @override
+  late final GeneratedColumn<String> example = GeneratedColumn<String>(
+    'example',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _synonymsMeta = const VerificationMeta(
+    'synonyms',
+  );
+  @override
+  late final GeneratedColumn<String> synonyms = GeneratedColumn<String>(
+    'synonyms',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cachedAtMeta = const VerificationMeta(
+    'cachedAt',
+  );
+  @override
+  late final GeneratedColumn<int> cachedAt = GeneratedColumn<int>(
+    'cached_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    word,
+    definition,
+    partOfSpeech,
+    phonetic,
+    audioUrl,
+    example,
+    synonyms,
+    cachedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cached_definitions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CachedDefinition> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('word')) {
+      context.handle(
+        _wordMeta,
+        word.isAcceptableOrUnknown(data['word']!, _wordMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_wordMeta);
+    }
+    if (data.containsKey('definition')) {
+      context.handle(
+        _definitionMeta,
+        definition.isAcceptableOrUnknown(data['definition']!, _definitionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_definitionMeta);
+    }
+    if (data.containsKey('part_of_speech')) {
+      context.handle(
+        _partOfSpeechMeta,
+        partOfSpeech.isAcceptableOrUnknown(
+          data['part_of_speech']!,
+          _partOfSpeechMeta,
+        ),
+      );
+    }
+    if (data.containsKey('phonetic')) {
+      context.handle(
+        _phoneticMeta,
+        phonetic.isAcceptableOrUnknown(data['phonetic']!, _phoneticMeta),
+      );
+    }
+    if (data.containsKey('audio_url')) {
+      context.handle(
+        _audioUrlMeta,
+        audioUrl.isAcceptableOrUnknown(data['audio_url']!, _audioUrlMeta),
+      );
+    }
+    if (data.containsKey('example')) {
+      context.handle(
+        _exampleMeta,
+        example.isAcceptableOrUnknown(data['example']!, _exampleMeta),
+      );
+    }
+    if (data.containsKey('synonyms')) {
+      context.handle(
+        _synonymsMeta,
+        synonyms.isAcceptableOrUnknown(data['synonyms']!, _synonymsMeta),
+      );
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(
+        _cachedAtMeta,
+        cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cachedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {word};
+  @override
+  CachedDefinition map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CachedDefinition(
+      word: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}word'],
+      )!,
+      definition: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}definition'],
+      )!,
+      partOfSpeech: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}part_of_speech'],
+      ),
+      phonetic: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}phonetic'],
+      ),
+      audioUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio_url'],
+      ),
+      example: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}example'],
+      ),
+      synonyms: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}synonyms'],
+      ),
+      cachedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cached_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CachedDefinitionsTable createAlias(String alias) {
+    return $CachedDefinitionsTable(attachedDatabase, alias);
+  }
+}
+
+class CachedDefinition extends DataClass
+    implements Insertable<CachedDefinition> {
+  final String word;
+  final String definition;
+  final String? partOfSpeech;
+  final String? phonetic;
+  final String? audioUrl;
+  final String? example;
+  final String? synonyms;
+  final int cachedAt;
+  const CachedDefinition({
+    required this.word,
+    required this.definition,
+    this.partOfSpeech,
+    this.phonetic,
+    this.audioUrl,
+    this.example,
+    this.synonyms,
+    required this.cachedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['word'] = Variable<String>(word);
+    map['definition'] = Variable<String>(definition);
+    if (!nullToAbsent || partOfSpeech != null) {
+      map['part_of_speech'] = Variable<String>(partOfSpeech);
+    }
+    if (!nullToAbsent || phonetic != null) {
+      map['phonetic'] = Variable<String>(phonetic);
+    }
+    if (!nullToAbsent || audioUrl != null) {
+      map['audio_url'] = Variable<String>(audioUrl);
+    }
+    if (!nullToAbsent || example != null) {
+      map['example'] = Variable<String>(example);
+    }
+    if (!nullToAbsent || synonyms != null) {
+      map['synonyms'] = Variable<String>(synonyms);
+    }
+    map['cached_at'] = Variable<int>(cachedAt);
+    return map;
+  }
+
+  CachedDefinitionsCompanion toCompanion(bool nullToAbsent) {
+    return CachedDefinitionsCompanion(
+      word: Value(word),
+      definition: Value(definition),
+      partOfSpeech: partOfSpeech == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partOfSpeech),
+      phonetic: phonetic == null && nullToAbsent
+          ? const Value.absent()
+          : Value(phonetic),
+      audioUrl: audioUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioUrl),
+      example: example == null && nullToAbsent
+          ? const Value.absent()
+          : Value(example),
+      synonyms: synonyms == null && nullToAbsent
+          ? const Value.absent()
+          : Value(synonyms),
+      cachedAt: Value(cachedAt),
+    );
+  }
+
+  factory CachedDefinition.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CachedDefinition(
+      word: serializer.fromJson<String>(json['word']),
+      definition: serializer.fromJson<String>(json['definition']),
+      partOfSpeech: serializer.fromJson<String?>(json['partOfSpeech']),
+      phonetic: serializer.fromJson<String?>(json['phonetic']),
+      audioUrl: serializer.fromJson<String?>(json['audioUrl']),
+      example: serializer.fromJson<String?>(json['example']),
+      synonyms: serializer.fromJson<String?>(json['synonyms']),
+      cachedAt: serializer.fromJson<int>(json['cachedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'word': serializer.toJson<String>(word),
+      'definition': serializer.toJson<String>(definition),
+      'partOfSpeech': serializer.toJson<String?>(partOfSpeech),
+      'phonetic': serializer.toJson<String?>(phonetic),
+      'audioUrl': serializer.toJson<String?>(audioUrl),
+      'example': serializer.toJson<String?>(example),
+      'synonyms': serializer.toJson<String?>(synonyms),
+      'cachedAt': serializer.toJson<int>(cachedAt),
+    };
+  }
+
+  CachedDefinition copyWith({
+    String? word,
+    String? definition,
+    Value<String?> partOfSpeech = const Value.absent(),
+    Value<String?> phonetic = const Value.absent(),
+    Value<String?> audioUrl = const Value.absent(),
+    Value<String?> example = const Value.absent(),
+    Value<String?> synonyms = const Value.absent(),
+    int? cachedAt,
+  }) => CachedDefinition(
+    word: word ?? this.word,
+    definition: definition ?? this.definition,
+    partOfSpeech: partOfSpeech.present ? partOfSpeech.value : this.partOfSpeech,
+    phonetic: phonetic.present ? phonetic.value : this.phonetic,
+    audioUrl: audioUrl.present ? audioUrl.value : this.audioUrl,
+    example: example.present ? example.value : this.example,
+    synonyms: synonyms.present ? synonyms.value : this.synonyms,
+    cachedAt: cachedAt ?? this.cachedAt,
+  );
+  CachedDefinition copyWithCompanion(CachedDefinitionsCompanion data) {
+    return CachedDefinition(
+      word: data.word.present ? data.word.value : this.word,
+      definition: data.definition.present
+          ? data.definition.value
+          : this.definition,
+      partOfSpeech: data.partOfSpeech.present
+          ? data.partOfSpeech.value
+          : this.partOfSpeech,
+      phonetic: data.phonetic.present ? data.phonetic.value : this.phonetic,
+      audioUrl: data.audioUrl.present ? data.audioUrl.value : this.audioUrl,
+      example: data.example.present ? data.example.value : this.example,
+      synonyms: data.synonyms.present ? data.synonyms.value : this.synonyms,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedDefinition(')
+          ..write('word: $word, ')
+          ..write('definition: $definition, ')
+          ..write('partOfSpeech: $partOfSpeech, ')
+          ..write('phonetic: $phonetic, ')
+          ..write('audioUrl: $audioUrl, ')
+          ..write('example: $example, ')
+          ..write('synonyms: $synonyms, ')
+          ..write('cachedAt: $cachedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    word,
+    definition,
+    partOfSpeech,
+    phonetic,
+    audioUrl,
+    example,
+    synonyms,
+    cachedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CachedDefinition &&
+          other.word == this.word &&
+          other.definition == this.definition &&
+          other.partOfSpeech == this.partOfSpeech &&
+          other.phonetic == this.phonetic &&
+          other.audioUrl == this.audioUrl &&
+          other.example == this.example &&
+          other.synonyms == this.synonyms &&
+          other.cachedAt == this.cachedAt);
+}
+
+class CachedDefinitionsCompanion extends UpdateCompanion<CachedDefinition> {
+  final Value<String> word;
+  final Value<String> definition;
+  final Value<String?> partOfSpeech;
+  final Value<String?> phonetic;
+  final Value<String?> audioUrl;
+  final Value<String?> example;
+  final Value<String?> synonyms;
+  final Value<int> cachedAt;
+  final Value<int> rowid;
+  const CachedDefinitionsCompanion({
+    this.word = const Value.absent(),
+    this.definition = const Value.absent(),
+    this.partOfSpeech = const Value.absent(),
+    this.phonetic = const Value.absent(),
+    this.audioUrl = const Value.absent(),
+    this.example = const Value.absent(),
+    this.synonyms = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CachedDefinitionsCompanion.insert({
+    required String word,
+    required String definition,
+    this.partOfSpeech = const Value.absent(),
+    this.phonetic = const Value.absent(),
+    this.audioUrl = const Value.absent(),
+    this.example = const Value.absent(),
+    this.synonyms = const Value.absent(),
+    required int cachedAt,
+    this.rowid = const Value.absent(),
+  }) : word = Value(word),
+       definition = Value(definition),
+       cachedAt = Value(cachedAt);
+  static Insertable<CachedDefinition> custom({
+    Expression<String>? word,
+    Expression<String>? definition,
+    Expression<String>? partOfSpeech,
+    Expression<String>? phonetic,
+    Expression<String>? audioUrl,
+    Expression<String>? example,
+    Expression<String>? synonyms,
+    Expression<int>? cachedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (word != null) 'word': word,
+      if (definition != null) 'definition': definition,
+      if (partOfSpeech != null) 'part_of_speech': partOfSpeech,
+      if (phonetic != null) 'phonetic': phonetic,
+      if (audioUrl != null) 'audio_url': audioUrl,
+      if (example != null) 'example': example,
+      if (synonyms != null) 'synonyms': synonyms,
+      if (cachedAt != null) 'cached_at': cachedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CachedDefinitionsCompanion copyWith({
+    Value<String>? word,
+    Value<String>? definition,
+    Value<String?>? partOfSpeech,
+    Value<String?>? phonetic,
+    Value<String?>? audioUrl,
+    Value<String?>? example,
+    Value<String?>? synonyms,
+    Value<int>? cachedAt,
+    Value<int>? rowid,
+  }) {
+    return CachedDefinitionsCompanion(
+      word: word ?? this.word,
+      definition: definition ?? this.definition,
+      partOfSpeech: partOfSpeech ?? this.partOfSpeech,
+      phonetic: phonetic ?? this.phonetic,
+      audioUrl: audioUrl ?? this.audioUrl,
+      example: example ?? this.example,
+      synonyms: synonyms ?? this.synonyms,
+      cachedAt: cachedAt ?? this.cachedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (word.present) {
+      map['word'] = Variable<String>(word.value);
+    }
+    if (definition.present) {
+      map['definition'] = Variable<String>(definition.value);
+    }
+    if (partOfSpeech.present) {
+      map['part_of_speech'] = Variable<String>(partOfSpeech.value);
+    }
+    if (phonetic.present) {
+      map['phonetic'] = Variable<String>(phonetic.value);
+    }
+    if (audioUrl.present) {
+      map['audio_url'] = Variable<String>(audioUrl.value);
+    }
+    if (example.present) {
+      map['example'] = Variable<String>(example.value);
+    }
+    if (synonyms.present) {
+      map['synonyms'] = Variable<String>(synonyms.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<int>(cachedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedDefinitionsCompanion(')
+          ..write('word: $word, ')
+          ..write('definition: $definition, ')
+          ..write('partOfSpeech: $partOfSpeech, ')
+          ..write('phonetic: $phonetic, ')
+          ..write('audioUrl: $audioUrl, ')
+          ..write('example: $example, ')
+          ..write('synonyms: $synonyms, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2724,6 +3252,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $ReviewClipsTable reviewClips = $ReviewClipsTable(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
+  late final $CachedDefinitionsTable cachedDefinitions =
+      $CachedDefinitionsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2734,6 +3264,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     vocabularyWords,
     reviewClips,
     appSettings,
+    cachedDefinitions,
   ];
 }
 
@@ -4084,6 +4615,280 @@ typedef $$AppSettingsTableProcessedTableManager =
       AppSetting,
       PrefetchHooks Function()
     >;
+typedef $$CachedDefinitionsTableCreateCompanionBuilder =
+    CachedDefinitionsCompanion Function({
+      required String word,
+      required String definition,
+      Value<String?> partOfSpeech,
+      Value<String?> phonetic,
+      Value<String?> audioUrl,
+      Value<String?> example,
+      Value<String?> synonyms,
+      required int cachedAt,
+      Value<int> rowid,
+    });
+typedef $$CachedDefinitionsTableUpdateCompanionBuilder =
+    CachedDefinitionsCompanion Function({
+      Value<String> word,
+      Value<String> definition,
+      Value<String?> partOfSpeech,
+      Value<String?> phonetic,
+      Value<String?> audioUrl,
+      Value<String?> example,
+      Value<String?> synonyms,
+      Value<int> cachedAt,
+      Value<int> rowid,
+    });
+
+class $$CachedDefinitionsTableFilterComposer
+    extends Composer<_$AppDatabase, $CachedDefinitionsTable> {
+  $$CachedDefinitionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get word => $composableBuilder(
+    column: $table.word,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get definition => $composableBuilder(
+    column: $table.definition,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get partOfSpeech => $composableBuilder(
+    column: $table.partOfSpeech,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get phonetic => $composableBuilder(
+    column: $table.phonetic,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get audioUrl => $composableBuilder(
+    column: $table.audioUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get example => $composableBuilder(
+    column: $table.example,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get synonyms => $composableBuilder(
+    column: $table.synonyms,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CachedDefinitionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CachedDefinitionsTable> {
+  $$CachedDefinitionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get word => $composableBuilder(
+    column: $table.word,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get definition => $composableBuilder(
+    column: $table.definition,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get partOfSpeech => $composableBuilder(
+    column: $table.partOfSpeech,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get phonetic => $composableBuilder(
+    column: $table.phonetic,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get audioUrl => $composableBuilder(
+    column: $table.audioUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get example => $composableBuilder(
+    column: $table.example,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get synonyms => $composableBuilder(
+    column: $table.synonyms,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CachedDefinitionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CachedDefinitionsTable> {
+  $$CachedDefinitionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get word =>
+      $composableBuilder(column: $table.word, builder: (column) => column);
+
+  GeneratedColumn<String> get definition => $composableBuilder(
+    column: $table.definition,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get partOfSpeech => $composableBuilder(
+    column: $table.partOfSpeech,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get phonetic =>
+      $composableBuilder(column: $table.phonetic, builder: (column) => column);
+
+  GeneratedColumn<String> get audioUrl =>
+      $composableBuilder(column: $table.audioUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get example =>
+      $composableBuilder(column: $table.example, builder: (column) => column);
+
+  GeneratedColumn<String> get synonyms =>
+      $composableBuilder(column: $table.synonyms, builder: (column) => column);
+
+  GeneratedColumn<int> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+}
+
+class $$CachedDefinitionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CachedDefinitionsTable,
+          CachedDefinition,
+          $$CachedDefinitionsTableFilterComposer,
+          $$CachedDefinitionsTableOrderingComposer,
+          $$CachedDefinitionsTableAnnotationComposer,
+          $$CachedDefinitionsTableCreateCompanionBuilder,
+          $$CachedDefinitionsTableUpdateCompanionBuilder,
+          (
+            CachedDefinition,
+            BaseReferences<
+              _$AppDatabase,
+              $CachedDefinitionsTable,
+              CachedDefinition
+            >,
+          ),
+          CachedDefinition,
+          PrefetchHooks Function()
+        > {
+  $$CachedDefinitionsTableTableManager(
+    _$AppDatabase db,
+    $CachedDefinitionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CachedDefinitionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CachedDefinitionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CachedDefinitionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> word = const Value.absent(),
+                Value<String> definition = const Value.absent(),
+                Value<String?> partOfSpeech = const Value.absent(),
+                Value<String?> phonetic = const Value.absent(),
+                Value<String?> audioUrl = const Value.absent(),
+                Value<String?> example = const Value.absent(),
+                Value<String?> synonyms = const Value.absent(),
+                Value<int> cachedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CachedDefinitionsCompanion(
+                word: word,
+                definition: definition,
+                partOfSpeech: partOfSpeech,
+                phonetic: phonetic,
+                audioUrl: audioUrl,
+                example: example,
+                synonyms: synonyms,
+                cachedAt: cachedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String word,
+                required String definition,
+                Value<String?> partOfSpeech = const Value.absent(),
+                Value<String?> phonetic = const Value.absent(),
+                Value<String?> audioUrl = const Value.absent(),
+                Value<String?> example = const Value.absent(),
+                Value<String?> synonyms = const Value.absent(),
+                required int cachedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CachedDefinitionsCompanion.insert(
+                word: word,
+                definition: definition,
+                partOfSpeech: partOfSpeech,
+                phonetic: phonetic,
+                audioUrl: audioUrl,
+                example: example,
+                synonyms: synonyms,
+                cachedAt: cachedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CachedDefinitionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CachedDefinitionsTable,
+      CachedDefinition,
+      $$CachedDefinitionsTableFilterComposer,
+      $$CachedDefinitionsTableOrderingComposer,
+      $$CachedDefinitionsTableAnnotationComposer,
+      $$CachedDefinitionsTableCreateCompanionBuilder,
+      $$CachedDefinitionsTableUpdateCompanionBuilder,
+      (
+        CachedDefinition,
+        BaseReferences<
+          _$AppDatabase,
+          $CachedDefinitionsTable,
+          CachedDefinition
+        >,
+      ),
+      CachedDefinition,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4098,4 +4903,6 @@ class $AppDatabaseManager {
       $$ReviewClipsTableTableManager(_db, _db.reviewClips);
   $$AppSettingsTableTableManager get appSettings =>
       $$AppSettingsTableTableManager(_db, _db.appSettings);
+  $$CachedDefinitionsTableTableManager get cachedDefinitions =>
+      $$CachedDefinitionsTableTableManager(_db, _db.cachedDefinitions);
 }

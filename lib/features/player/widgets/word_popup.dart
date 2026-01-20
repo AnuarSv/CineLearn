@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../../app/theme/colors.dart';
 import '../../../app/theme/app_theme.dart';
-import '../../../core/services/oxford_dictionary_service.dart';
+import '../../../core/services/dictionary_cache_service.dart';
 import '../../../data/models/vocabulary_word.dart';
 import 'package:uuid/uuid.dart';
 
-/// Bottom sheet popup showing word definition from Oxford Dictionary
+/// Bottom sheet popup showing word definition with local caching
 class WordPopup extends StatefulWidget {
   final String word;
   final String contextSentence;
   final Duration timestamp;
   final String videoId;
-  final OxfordDictionaryService dictionaryService;
+  final DictionaryCacheService cacheService;
   final VoidCallback onClose;
   final Function(VocabularyWord) onSave;
 
@@ -22,7 +23,7 @@ class WordPopup extends StatefulWidget {
     required this.contextSentence,
     required this.timestamp,
     required this.videoId,
-    required this.dictionaryService,
+    required this.cacheService,
     required this.onClose,
     required this.onSave,
   });
@@ -32,9 +33,10 @@ class WordPopup extends StatefulWidget {
 }
 
 class _WordPopupState extends State<WordPopup> {
-  WordDefinition? _definition;
+  CachedWordDefinition? _definition;
   bool _isLoading = true;
   String? _error;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -42,9 +44,15 @@ class _WordPopupState extends State<WordPopup> {
     _loadDefinition();
   }
 
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadDefinition() async {
     try {
-      final definition = await widget.dictionaryService.lookupWord(widget.word);
+      final definition = await widget.cacheService.lookupWord(widget.word);
       if (mounted) {
         setState(() {
           _definition = definition;
@@ -60,6 +68,16 @@ class _WordPopupState extends State<WordPopup> {
           _isLoading = false;
           _error = 'Failed to load definition';
         });
+      }
+    }
+  }
+
+  Future<void> _playAudio() async {
+    if (_definition?.audioUrl != null) {
+      try {
+        await _audioPlayer.play(UrlSource(_definition!.audioUrl!));
+      } catch (e) {
+        // Ignore audio errors
       }
     }
   }
@@ -93,278 +111,206 @@ class _WordPopupState extends State<WordPopup> {
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : AppColors.surface,
         borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Handle
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.divider,
-              borderRadius: BorderRadius.circular(2),
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
           ),
-
+          
           // Content
           Padding(
-            padding: const EdgeInsets.all(AppTheme.spacingL),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Word header
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.word,
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ).animate().fadeIn(),
-                          if (_definition?.phonetic != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              _definition!.pronunciationDisplay,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: AppColors.textSecondary,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ).animate().fadeIn(delay: 100.ms),
-                          ],
-                          if (_definition?.partOfSpeech != null) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.accent.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                _definition!.partOfSpeech!,
-                                style: TextStyle(
-                                  color: AppColors.accent,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ).animate().fadeIn(delay: 200.ms),
-                          ],
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.close_rounded, color: AppColors.textTertiary),
-                      onPressed: widget.onClose,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-
-                // Definition
-                if (_isLoading)
-                  _LoadingState()
-                else if (_error != null)
-                  _ErrorState(error: _error!)
-                else if (_definition != null)
-                  _DefinitionContent(definition: _definition!),
-
-                const SizedBox(height: 16),
-
-                // Context sentence
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.darkSurfaceVariant : AppColors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.format_quote_rounded,
-                        color: AppColors.textTertiary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.contextSentence,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ).animate().fadeIn(delay: 400.ms),
-
-                const SizedBox(height: 24),
-
-                // Save button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _definition != null ? _saveWord : null,
-                    icon: const Icon(Icons.bookmark_add_outlined),
-                    label: const Text('Save to Vocabulary'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.1),
-              ],
-            ),
-          ),
-
-          // Safe area padding
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
+            padding: const EdgeInsets.all(20),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 150,
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : _error != null
+                    ? _buildErrorState()
+                    : _buildDefinitionContent(isDark),
+          ).animate().fadeIn(duration: 200.ms),
         ],
       ),
     );
   }
-}
 
-class _LoadingState extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            SizedBox(
-              width: 32,
-              height: 32,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.accent,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Looking up definition...',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
+  Widget _buildErrorState() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.search_off, size: 48, color: Colors.grey),
+        const SizedBox(height: 12),
+        Text(
+          _error ?? 'No definition found',
+          style: const TextStyle(color: Colors.grey),
         ),
-      ),
+        const SizedBox(height: 16),
+        TextButton(
+          onPressed: widget.onClose,
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
-}
 
-class _ErrorState extends StatelessWidget {
-  final String error;
-
-  const _ErrorState({required this.error});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            Icon(
-              Icons.error_outline_rounded,
-              size: 48,
-              color: AppColors.textTertiary,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              error,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DefinitionContent extends StatelessWidget {
-  final WordDefinition definition;
-
-  const _DefinitionContent({required this.definition});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildDefinitionContent(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
+        // Word and pronunciation
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _definition!.word,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : AppColors.textMain,
+                ),
+              ),
+            ),
+            if (_definition!.audioUrl != null)
+              IconButton(
+                onPressed: _playAudio,
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.volume_up, color: AppColors.accent),
+                ),
+              ),
+          ],
+        ),
+        
+        if (_definition!.phonetic != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            _definition!.phonetic!,
+            style: TextStyle(
+              fontSize: 16,
+              color: isDark ? Colors.white60 : Colors.grey.shade600,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+        
+        if (_definition!.partOfSpeech != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              _definition!.partOfSpeech!,
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+        
+        const SizedBox(height: 16),
+        
         // Definition
         Text(
-          'Definition',
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: AppColors.textTertiary,
-            letterSpacing: 1,
+          _definition!.definition,
+          style: TextStyle(
+            fontSize: 16,
+            height: 1.5,
+            color: isDark ? Colors.white : AppColors.textMain,
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          definition.definition,
-          style: Theme.of(context).textTheme.bodyLarge,
-        ).animate().fadeIn(delay: 300.ms),
-
-        // Example (if available)
-        if (definition.example != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Example',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppColors.textTertiary,
-              letterSpacing: 1,
+        
+        if (_definition!.example != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+              border: Border(
+                left: BorderSide(color: AppColors.accent, width: 3),
+              ),
+            ),
+            child: Text(
+              '"${_definition!.example!}"',
+              style: TextStyle(
+                fontSize: 14,
+                fontStyle: FontStyle.italic,
+                color: isDark ? Colors.white70 : Colors.grey.shade700,
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '"${definition.example}"',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontStyle: FontStyle.italic,
-              color: AppColors.textSecondary,
-            ),
-          ).animate().fadeIn(delay: 350.ms),
         ],
-
-        // Synonyms (if available)
-        if (definition.synonyms.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Synonyms',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppColors.textTertiary,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: definition.synonyms.take(5).map((syn) {
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.divider),
-                  borderRadius: BorderRadius.circular(6),
+        
+        const SizedBox(height: 24),
+        
+        // Action buttons
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: widget.onClose,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(color: Colors.grey.shade400),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: Text(
-                  syn,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  'Close',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.grey.shade700,
+                  ),
                 ),
-              );
-            }).toList(),
-          ).animate().fadeIn(delay: 400.ms),
-        ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton.icon(
+                onPressed: _saveWord,
+                icon: const Icon(Icons.bookmark_add, size: 20),
+                label: const Text('Save Word'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

@@ -67,6 +67,32 @@ class VideoProcessingService {
     }
   }
 
+  Future<String?> generateThumbnail(String videoPath) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final thumbnailsDir = Directory('${appDir.path}/thumbnails');
+      if (!await thumbnailsDir.exists()) {
+        await thumbnailsDir.create(recursive: true);
+      }
+      
+      final outputPath = '${thumbnailsDir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      
+      // Extract frame at 1 second mark (or 0 if video is very short)
+      final session = await FFmpegKit.execute(
+        '-ss 00:00:01 -i "$videoPath" -vframes 1 -q:v 2 "$outputPath"'
+      );
+      
+      final returnCode = await session.getReturnCode();
+      if (ReturnCode.isSuccess(returnCode)) {
+        return outputPath;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error generating thumbnail: $e');
+      return null;
+    }
+  }
+
   Future<String?> extractClip({
     required String inputPath,
     required Duration start,
@@ -74,15 +100,20 @@ class VideoProcessingService {
     required String outputFileName,
   }) async {
     try {
-      final tempDir = await getTemporaryDirectory();
-      final outputPath = '${tempDir.path}/$outputFileName';
+      final appDir = await getApplicationDocumentsDirectory();
+      final clipsDir = Directory('${appDir.path}/clips');
+      if (!await clipsDir.exists()) {
+        await clipsDir.create(recursive: true);
+      }
+      
+      final outputPath = '${clipsDir.path}/$outputFileName';
       
       final startTime = _formatDuration(start);
       final durationTime = _formatDuration(duration);
       
-      // Fast seek -ss before -i, output seek -t
+      // Encode with faster preset for clips to ensure they are small and load fast
       final session = await FFmpegKit.execute(
-        '-ss $startTime -i "$inputPath" -t $durationTime -c copy "$outputPath"'
+        '-ss $startTime -i "$inputPath" -t $durationTime -c:v libx264 -preset superfast -crf 28 -c:a aac -b:a 128k "$outputPath"'
       );
       
       final returnCode = await session.getReturnCode();

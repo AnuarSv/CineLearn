@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 import 'package:drift/drift.dart' as drift;
 
+import 'package:uuid/uuid.dart';
 import '../../../app/theme/colors.dart';
 import '../../../core/providers/providers.dart';
 import '../../../data/database/app_database.dart' as db;
@@ -249,7 +250,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
         contextSentence: _currentSubtitle?.text ?? '',
         timestamp: _controller!.value.position,
         videoId: _videoData!.id,
-        dictionaryService: ref.read(dictionaryServiceProvider),
+        cacheService: ref.read(dictionaryCacheServiceProvider),
         onClose: () => Navigator.pop(context),
         onSave: (wordObj) => _onSaveWord(wordObj),
       ),
@@ -258,34 +259,65 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
 
   // Callback from WordPopup to save the word
   Future<void> _onSaveWord(model.VocabularyWord wordObj) async {
-    final database = ref.read(databaseProvider);
-    
-    final entry = db.VocabularyWordsCompanion(
-      id: drift.Value(wordObj.id),
-      word: drift.Value(wordObj.word.toLowerCase()), // normalize
-      definition: drift.Value(wordObj.definition),
-      partOfSpeech: drift.Value(wordObj.partOfSpeech),
-      phonetic: drift.Value(wordObj.phonetic),
-      audioUrl: drift.Value(wordObj.audioUrl),
-      example: drift.Value(wordObj.example),
-      videoId: drift.Value(wordObj.videoId),
-      videoTitle: drift.Value(_videoData?.title ?? wordObj.videoTitle),
-      timestampMs: drift.Value(wordObj.timestamp.inMilliseconds),
-      contextSentence: drift.Value(wordObj.contextSentence),
-      savedAt: drift.Value(wordObj.savedAt.millisecondsSinceEpoch),
-    );
-
-    await database.upsertVocabularyWord(entry);
-
-    if (mounted) {
-      Navigator.pop(context); // Close popup
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Saved: ${wordObj.word}'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.success,
-        ),
+    try {
+      final database = ref.read(databaseProvider);
+      
+      final entry = db.VocabularyWordsCompanion(
+        id: drift.Value(wordObj.id),
+        word: drift.Value(wordObj.word.toLowerCase()),
+        definition: drift.Value(wordObj.definition),
+        partOfSpeech: drift.Value(wordObj.partOfSpeech),
+        phonetic: drift.Value(wordObj.phonetic),
+        audioUrl: drift.Value(wordObj.audioUrl),
+        example: drift.Value(wordObj.example),
+        videoId: drift.Value(wordObj.videoId),
+        videoTitle: drift.Value(_videoData?.title ?? wordObj.videoTitle),
+        timestampMs: drift.Value(wordObj.timestamp.inMilliseconds),
+        contextSentence: drift.Value(wordObj.contextSentence),
+        savedAt: drift.Value(wordObj.savedAt.millisecondsSinceEpoch),
       );
+
+      await database.upsertVocabularyWord(entry);
+
+      // 1. Create a ReviewClip entry (logical)
+      final clipId = const Uuid().v4();
+      final startTimeMs = (wordObj.timestamp.inMilliseconds - 5000).clamp(0, 10000000).toInt();
+      final endTimeMs = (wordObj.timestamp.inMilliseconds + 5000);
+      
+      await database.into(database.reviewClips).insert(db.ReviewClipsCompanion(
+        id: drift.Value(clipId),
+        vocabularyId: drift.Value(wordObj.id),
+        videoId: drift.Value(wordObj.videoId),
+        clipStartMs: drift.Value(startTimeMs),
+        clipEndMs: drift.Value(endTimeMs),
+        createdAt: drift.Value(DateTime.now().millisecondsSinceEpoch),
+      ));
+
+      // 2. Trigger background physical extraction for Reels performance
+      _extractPhysicalClip(clipId, wordObj.videoId, startTimeMs, endTimeMs);
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved: ${wordObj.word} (optimizing for Reels...)'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving word: $e');
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save word: $e'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
@@ -337,36 +369,37 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                       ],
                     ),
                   )
-                : Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Video
-                      GestureDetector(
-                        onTap: _onTap,
-                        onDoubleTap: _onDoubleTap,
-                        child: Center(
+                : GestureDetector(
+                    onTap: _showSubtitleOverlay ? null : _onTap,
+                    onDoubleTap: _showSubtitleOverlay ? null : _onDoubleTap,
+                    behavior: HitTestBehavior.opaque,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Video
+                        Center(
                           child: AspectRatio(
                             aspectRatio: _controller!.value.aspectRatio,
                             child: VideoPlayer(_controller!),
                           ),
                         ),
-                      ),
 
-                      // Controls overlay
-                      if (!_showSubtitleOverlay)
-                        IgnorePointer(
-                          ignoring: !_showControls,
-                          child: _buildControlsOverlay(),
-                        ),
+                        // Controls overlay
+                        if (!_showSubtitleOverlay)
+                          IgnorePointer(
+                            ignoring: !_showControls,
+                            child: _buildControlsOverlay(),
+                          ),
 
-                      // Subtitle overlay for word selection
-                      if (_showSubtitleOverlay && _currentSubtitle != null)
-                        SubtitleOverlay(
-                          subtitle: _currentSubtitle!,
-                          onWordTap: _onWordTapped,
-                          onDismiss: _hideSubtitleOverlay,
-                        ),
-                    ],
+                        // Subtitle overlay for word selection
+                        if (_showSubtitleOverlay && _currentSubtitle != null)
+                          SubtitleOverlay(
+                            subtitle: _currentSubtitle!,
+                            onWordTap: _onWordTapped,
+                            onDismiss: _hideSubtitleOverlay,
+                          ),
+                      ],
+                    ),
                   ),
       ),
     );
@@ -377,15 +410,11 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     final duration = _controller!.value.duration;
     final isPlaying = _controller!.value.isPlaying;
 
-    return GestureDetector(
-      onTap: _onTap,
-      onDoubleTap: _onDoubleTap,
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedOpacity(
-        opacity: _showControls ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 200),
-        child: Container(
-          decoration: BoxDecoration(
+    return AnimatedOpacity(
+      opacity: _showControls ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 200),
+      child: Container(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -519,7 +548,34 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
+
+  Future<void> _extractPhysicalClip(String clipId, String videoId, int startMs, int endMs) async {
+    try {
+      final database = ref.read(databaseProvider);
+      final videoService = ref.read(videoProcessingServiceProvider);
+      
+      final video = await (database.select(database.videos)..where((t) => t.id.equals(videoId))).getSingleOrNull();
+      if (video == null) return;
+
+      final outputPath = await videoService.extractClip(
+        inputPath: video.filePath,
+        start: Duration(milliseconds: startMs),
+        duration: Duration(milliseconds: endMs - startMs),
+        outputFileName: 'clip_$clipId.mp4',
+      );
+
+      if (outputPath != null) {
+        await (database.update(database.reviewClips)..where((t) => t.id.equals(clipId))).write(
+          db.ReviewClipsCompanion(
+            clipPath: drift.Value(outputPath),
+          ),
+        );
+        debugPrint('Physical clip extracted: $outputPath');
+      }
+    } catch (e) {
+      debugPrint('Error extracting physical clip: $e');
+    }
   }
 }
