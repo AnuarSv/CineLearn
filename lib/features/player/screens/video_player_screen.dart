@@ -478,12 +478,12 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                       width: 84,
                       height: 84,
                       decoration: BoxDecoration(
-                        color: AppColors.success,
+                        color: AppColors.success.withOpacity(0.6), // Semi-transparent green
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(color: AppColors.success.withOpacity(0.5), blurRadius: 25),
+                          BoxShadow(color: AppColors.success.withOpacity(0.3), blurRadius: 25),
                         ],
-                        border: Border.all(color: Colors.white24, width: 2),
+                        border: Border.all(color: Colors.white30, width: 2),
                       ),
                       child: Icon(
                         isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,

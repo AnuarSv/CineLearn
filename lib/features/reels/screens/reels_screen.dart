@@ -116,6 +116,52 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     }
   }
 
+  Future<void> _shareReel(db.ReviewClip clip, db.VocabularyWord? word) async {
+    if (word == null) return;
+    
+    // Pause playback while sharing
+    final currentController = _controllers[_currentPage];
+    currentController?.pause();
+    
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Preparing clip for sharing...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final database = ref.read(databaseProvider);
+      final shareService = ref.read(shareServiceProvider);
+      
+      // Get parent video path for source
+      String? sourcePath = clip.clipPath;
+      if (sourcePath == null) {
+        final video = await (database.select(database.videos)
+          ..where((t) => t.id.equals(clip.videoId))).getSingleOrNull();
+        sourcePath = video?.filePath;
+      }
+
+      if (sourcePath != null) {
+        await shareService.shareReelOnDemand(
+          sourcePath: sourcePath,
+          start: Duration(milliseconds: clip.clipStartMs),
+          duration: Duration(milliseconds: clip.clipEndMs - clip.clipStartMs),
+          title: word.videoTitle ?? 'CineLearn Clip',
+          word: word.word,
+        );
+      }
+    } catch (e) {
+      debugPrint('Share error: $e');
+    } finally {
+      // Resume if still focused
+      if (currentController?.isInitialized == true) {
+        currentController?.play();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -157,7 +203,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
           if (controller == null || !controller.isInitialized) {
             return _LoadingPlaceholder();
           }
-          return _ReelItem(controller: controller);
+          return _ReelItem(
+            controller: controller,
+            onShare: _shareReel,
+          );
         },
       ),
     );
@@ -234,8 +283,9 @@ class _ReelController {
 
 class _ReelItem extends ConsumerWidget {
   final _ReelController controller;
+  final Function(db.ReviewClip, db.VocabularyWord?) onShare;
 
-  const _ReelItem({required this.controller});
+  const _ReelItem({required this.controller, required this.onShare});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -345,20 +395,11 @@ class _ReelItem extends ConsumerWidget {
           bottom: 100,
           child: Column(
             children: [
+
               _ReelActionButton(
                 icon: Icons.share_rounded,
                 label: 'Share',
-                onTap: () {
-                  final currentWord = word;
-                  if (currentWord != null) {
-                    final shareService = ref.read(shareServiceProvider);
-                    shareService.shareReelCard(
-                      currentWord.word,
-                      currentWord.definition ?? 'No definition',
-                      controller.clip.clipPath ?? '',
-                    );
-                  }
-                },
+                onTap: () => onShare(controller.clip, word),
               ).animate().fadeIn(delay: 300.ms).slideX(begin: 0.2),
               
               const SizedBox(height: 20),

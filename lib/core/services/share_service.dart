@@ -4,7 +4,14 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:file_picker/file_picker.dart';
+import '../providers/providers.dart';
+
 class ShareService {
+  final VideoProcessingService _videoService;
+  
+  ShareService(this._videoService);
+
   Future<void> shareText(String text) async {
     await Share.share(text);
   }
@@ -14,27 +21,39 @@ class ShareService {
     await Share.shareXFiles([file], text: text);
   }
 
-  /// Placeholder: In a real app this would overlay text on an image
-  /// For now, we mock it by returning the original image or a generated placeholder
-  Future<void> shareReelCard(String word, String definition, String imagePath) async {
-    // Determine the path to share
-    String path = imagePath;
-    
-    // If the image path doesn't exist, we might want to generate a text-based image,
-    // but for simplicity in this iteration, we'll share the text if image is missing,
-    // or share the file if present.
-    
-    if (await File(path).exists()) {
-      await Share.shareXFiles(
-        [XFile(path)],
-        text: 'Learn "$word" with CineLearn!\n\nDefinition: $definition',
+  /// Extracts a clip on demand and shares it
+  Future<void> shareReelOnDemand({
+    required String sourcePath,
+    required Duration start,
+    required Duration duration,
+    required String title,
+    required String word,
+  }) async {
+    try {
+      // 1. Generate a temporary clip
+      final clipPath = await _videoService.extractClip(
+        inputPath: sourcePath,
+        start: start,
+        duration: duration,
+        outputFileName: 'share_${DateTime.now().millisecondsSinceEpoch}.mp4',
       );
-    } else {
-      await Share.share('Learn "$word" with CineLearn!\n\nDefinition: $definition');
+
+      if (clipPath != null) {
+        // 2. Share the file
+        await Share.shareXFiles(
+          [XFile(clipPath)],
+          text: 'Check out this word "$word" from "$title" on CineLearn!',
+        );
+      }
+    } catch (e) {
+      print('Error sharing reel: $e');
+      // Fallback
+      await Share.share('Learn "$word" with CineLearn!');
     }
   }
 }
 
 final shareServiceProvider = Provider<ShareService>((ref) {
-  return ShareService();
+  final videoService = ref.read(videoProcessingServiceProvider);
+  return ShareService(videoService);
 });
