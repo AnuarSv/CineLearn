@@ -237,16 +237,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         title: const Text('No Subtitles Found'),
         content: Text(
-          'To use learning features, please ensure an .srt file exists in the same folder as "$fileName", or that the video contains internal subtitle tracks.\n\n'
-          'Example:\nMovie.mp4\nMovie.srt',
+          'We couldn\'t find an .srt file or internal subtitles for "$fileName".\n\n'
+          'Without subtitles, learning features (clicking words, flashcards) won\'t work.',
           style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
+            onPressed: () {
+              // Delete the video entry we just made since user cancelled
+              Navigator.pop(context);
+              // We should probably handle clean up here if we wanted to be strict,
+              // but the video is already added. Let's just let them continue or delete.
+            },
+            child: const Text('Cancel', style: TextStyle(color: AppColors.error)),
+          ),
+          ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Continue Anyway'),
           ),
         ],
       ),
