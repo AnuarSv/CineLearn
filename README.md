@@ -7,9 +7,20 @@
 ## Releases
 
 <p align="center">
-  <a href="build/app/outputs/flutter-apk/app-release.apk">
-    <img src="https://img.shields.io/badge/Download-Android--APK-000000?style=for-the-badge&logo=android&logoColor=white" alt="Download APK">
+  <h3>Latest Release (v1.0.0)</h3>
+  <br>
+  <!-- ARM64 (Most modern phones) -->
+  <a href="build/app/outputs/flutter-apk/app-arm64-v8a-release.apk">
+    <img src="https://img.shields.io/badge/Download-Modern%20Phones%20(ARM64)-2ea44f?style=for-the-badge&logo=android&logoColor=white" alt="Download Modern APK">
   </a>
+  <br><br>
+  <!-- ARMv7 (Older phones) -->
+  <a href="build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk">
+    <img src="https://img.shields.io/badge/Download-Older%20Phones%20(ARMv7)-000000?style=for-the-badge&logo=android&logoColor=white" alt="Download Legacy APK">
+  </a>
+  <br>
+  <br>
+  <small><b>Note:</b> We now provide optimized builds (~46MB) instead of a single massive file.</small>
 </p>
 
 ---
