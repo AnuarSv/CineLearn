@@ -30,8 +30,98 @@ class AppTheme {
     ),
   ];
 
-  // Legacy accessor for compatibility
-  static ThemeData get lightTheme => darkTheme;
+  static ThemeData get lightTheme {
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      scaffoldBackgroundColor: AppColors.background,
+      primaryColor: AppColors.primary,
+      
+      // Typography
+      fontFamily: GoogleFonts.outfit().fontFamily,
+      textTheme: GoogleFonts.outfitTextTheme(ThemeData.light().textTheme).apply(
+        bodyColor: AppColors.textMain,
+        displayColor: AppColors.textMain,
+      ),
+
+      // App Bar
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        titleTextStyle: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textMain,
+        ),
+        iconTheme: IconThemeData(color: AppColors.textMain),
+      ),
+
+      // Cards
+      cardTheme: CardThemeData(
+        color: AppColors.surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusLarge),
+          side: const BorderSide(color: AppColors.glassBorderLight, width: 1),
+        ),
+        margin: const EdgeInsets.only(bottom: spacingM),
+      ),
+
+      // Buttons
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusMedium),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
+      
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusMedium),
+          ),
+          side: const BorderSide(color: AppColors.primary),
+        ),
+      ),
+
+      // Inputs
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.surfaceVariant,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMedium),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMedium),
+          borderSide: const BorderSide(color: AppColors.primary),
+        ),
+        contentPadding: const EdgeInsets.all(spacingM),
+        hintStyle: const TextStyle(color: AppColors.textTertiary),
+      ),
+
+      colorScheme: ColorScheme.light(
+        primary: AppColors.primary,
+        secondary: AppColors.accent,
+        surface: AppColors.surface,
+        background: AppColors.background,
+        error: AppColors.error,
+      ),
+    );
+  }
 
   static ThemeData get darkTheme {
     return ThemeData(
@@ -57,9 +147,10 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
+        iconTheme: IconThemeData(color: AppColors.textPrimary),
       ),
 
-      // Cards - Fixed CardThemeData type 
+      // Cards 
       cardTheme: CardThemeData(
         color: AppColors.darkSurface,
         elevation: 0,

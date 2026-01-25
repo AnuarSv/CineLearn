@@ -14,6 +14,7 @@ import '../../../data/models/subtitle_entry.dart';
 import '../../../data/models/vocabulary_word.dart' as model; // Manual model
 import '../widgets/subtitle_overlay.dart';
 import '../widgets/word_popup.dart';
+import '../../../app/widgets/glass_container.dart';
 
 /// Video player screen with custom gesture controls
 class VideoPlayerScreen extends ConsumerStatefulWidget {
@@ -293,14 +294,16 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
         createdAt: drift.Value(DateTime.now().millisecondsSinceEpoch),
       ));
 
-      // 2. Trigger background physical extraction for Reels performance
-      _extractPhysicalClip(clipId, wordObj.videoId, startTimeMs, endTimeMs);
+      // 2. Physical extraction disabled per user request ("don't copy")
+      // We will rely on logical clipping (playing original file from startMs to endMs)
+      // This makes saving instant without FFmpeg processing overhead.
+      // _extractPhysicalClip(clipId, wordObj.videoId, startTimeMs, endTimeMs);
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Saved: ${wordObj.word} (optimizing for Reels...)'),
+            content: Text('Saved: ${wordObj.word}'),
             behavior: SnackBarBehavior.floating,
             backgroundColor: AppColors.success,
           ),
@@ -413,37 +416,32 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     return AnimatedOpacity(
       opacity: _showControls ? 1.0 : 0.0,
       duration: const Duration(milliseconds: 200),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0.7),
-              Colors.transparent,
-              Colors.transparent,
-              Colors.black.withValues(alpha: 0.7),
-            ],
-            stops: const [0.0, 0.2, 0.8, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Top bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: SafeArea(
+        child: Stack(
+          children: [
+            // Top bar
+            Positioned(
+              top: 0,
+              left: 16,
+              right: 16,
+              child: GlassContainer(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                borderRadius: BorderRadius.circular(16),
+                color: Colors.black,
+                opacity: 0.4,
                 child: Row(
                   children: [
                     IconButton(
                       onPressed: _exit,
-                      icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                      icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Text(
                         _videoData?.title ?? '',
-                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -451,62 +449,90 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                   ],
                 ),
               ),
+            ),
 
-              const Spacer(),
-
-              // Center controls
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            // Center controls
+            Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Seek backward
-                  IconButton(
-                    onPressed: _seekBackward,
-                    iconSize: 48,
-                    icon: const Icon(Icons.replay_10, color: Colors.white),
+                   // Seek backward
+                  GlassContainer(
+                    padding: const EdgeInsets.all(16),
+                    borderRadius: BorderRadius.circular(50),
+                    color: Colors.black,
+                    opacity: 0.3,
+                    child: IconButton(
+                      onPressed: _seekBackward,
+                      iconSize: 32,
+                      icon: const Icon(Icons.replay_10, color: AppColors.success),
+                      tooltip: 'Rewind 10s',
+                    ),
                   ),
                   const SizedBox(width: 32),
+                  
                   // Play/Pause
                   GestureDetector(
                     onTap: _togglePlayPause,
                     child: Container(
-                      width: 72,
-                      height: 72,
+                      width: 84,
+                      height: 84,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: AppColors.success,
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: AppColors.success.withOpacity(0.5), blurRadius: 25),
+                        ],
+                        border: Border.all(color: Colors.white24, width: 2),
                       ),
                       child: Icon(
-                        isPlaying ? Icons.pause : Icons.play_arrow,
+                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                         color: Colors.white,
-                        size: 48,
+                        size: 52,
                       ),
                     ),
                   ),
+                  
                   const SizedBox(width: 32),
+
                   // Seek forward
-                  IconButton(
-                    onPressed: _seekForward,
-                    iconSize: 48,
-                    icon: const Icon(Icons.forward_10, color: Colors.white),
+                  GlassContainer(
+                    padding: const EdgeInsets.all(16),
+                    borderRadius: BorderRadius.circular(50),
+                    color: Colors.black,
+                    opacity: 0.3,
+                    child: IconButton(
+                      onPressed: _seekForward,
+                      iconSize: 32,
+                      icon: const Icon(Icons.forward_10, color: AppColors.success),
+                      tooltip: 'Forward 10s',
+                    ),
                   ),
                 ],
               ),
+            ),
 
-              const Spacer(),
-
-              // Bottom bar with progress
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            // Bottom bar with progress
+            Positioned(
+              bottom: 16,
+              left: 16,
+              right: 16,
+              child: GlassContainer(
+                padding: const EdgeInsets.all(16),
+                borderRadius: BorderRadius.circular(24),
+                color: Colors.black,
+                opacity: 0.4,
                 child: Column(
                   children: [
                     // Progress bar
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
-                        activeTrackColor: AppColors.primary,
+                        activeTrackColor: AppColors.success, // Green as requested
                         inactiveTrackColor: Colors.white24,
-                        thumbColor: AppColors.primary,
+                        thumbColor: AppColors.success,
                         trackHeight: 4,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                       ),
                       child: Slider(
                         value: position.inMilliseconds.toDouble(),
@@ -520,32 +546,26 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                     ),
                     // Time labels
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             _formatDuration(position),
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
                           ),
                           Text(
                             _formatDuration(duration),
-                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    // Hint
-                    Text(
-                      'Double-tap to show subtitles',
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
-                    ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
