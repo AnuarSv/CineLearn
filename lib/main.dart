@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/providers/providers.dart';
 import 'app/app.dart';
 
 void main() async {
@@ -11,6 +13,9 @@ void main() async {
     
     // Initialize Hive for local settings
     await Hive.initFlutter();
+    
+    // Initialize SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
     
     // Set preferred orientations
     await SystemChrome.setPreferredOrientations([
@@ -29,8 +34,11 @@ void main() async {
     );
     
     runApp(
-      const ProviderScope(
-        child: CineLearnApp(),
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ],
+        child: const CineLearnApp(),
       ),
     );
   } catch (e, stackTrace) {

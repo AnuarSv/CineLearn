@@ -7,6 +7,8 @@ import '../../../app/theme/app_theme.dart';
 import '../../../core/providers/providers.dart';
 import '../../../data/database/app_database.dart';
 
+import '../../../app/widgets/glass_container.dart';
+
 /// Home screen with overview and quick actions
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -18,33 +20,68 @@ class HomeScreen extends ConsumerWidget {
     final vocabularyCountAsync = ref.watch(vocabularyCountProvider);
     
     return Scaffold(
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            // Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spacingL),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'CineLearn',
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.1),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Learn English through movies',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ).animate().fadeIn(delay: 100.ms, duration: 300.ms),
-                  ],
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      body: Stack(
+        children: [
+          // Background Gradient Glow
+          // Background Gradient Glow - Removed for cleaner look as per user request
+          // Positioned(
+          //   top: -100,
+          //   left: -100,
+          //   child: Container(
+          //     width: 300,
+          //     height: 300,
+          //     decoration: BoxDecoration(
+          //       shape: BoxShape.circle,
+          //       gradient: RadialGradient(
+          //         colors: [
+          //           AppColors.primary.withOpacity(0.3),
+          //           Colors.transparent,
+          //         ],
+          //       ),
+          //     ),
+          //   ),
+          // ),
+
+          SafeArea(
+            child: CustomScrollView(
+              slivers: [
+                // Header
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppTheme.spacingL),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'CineLearn',
+                              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.1),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Learn English through movies',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ).animate().fadeIn(delay: 100.ms, duration: 300.ms),
+                          ],
+                        ),
+                        // Settings Button
+                        GlassContainer(
+                          padding: const EdgeInsets.all(10),
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => context.push('/settings'),
+                          child: const Icon(Icons.settings_rounded, color: AppColors.primary),
+                        ).animate().fadeIn(delay: 200.ms).scale(),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
             
             // Stats cards
             SliverToBoxAdapter(
@@ -217,7 +254,7 @@ class HomeScreen extends ConsumerWidget {
                         return _RecentVideoItem(
                           video: video,
                           isDark: isDark,
-                          onTap: () => context.go('/player/${video.id}'),
+                          onTap: () => context.push('/player/${video.id}'),
                         );
                       },
                       childCount: videos.length,
@@ -233,7 +270,9 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
-    );
+    ],
+  ),
+);
   }
 }
 
@@ -254,51 +293,49 @@ class _RecentVideoItem extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
-      child: GestureDetector(
+      child: GlassContainer(
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(AppTheme.spacingM),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : AppColors.surface,
-            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-            boxShadow: AppTheme.shadowSmall,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 60,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurfaceVariant : AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Icon(Icons.play_circle_outline, color: AppColors.textTertiary),
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        opacity: 0.5,
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkSurfaceVariant : AppColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(6),
               ),
-              const SizedBox(width: AppTheme.spacingM),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      video.title,
-                      style: Theme.of(context).textTheme.titleSmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    LinearProgressIndicator(
+              child: Icon(Icons.play_circle_outline, color: AppColors.textTertiary),
+            ),
+            const SizedBox(width: AppTheme.spacingM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    video.title,
+                    style: Theme.of(context).textTheme.titleSmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
                       value: progress,
                       backgroundColor: Colors.black12,
                       color: AppColors.accent,
-                      minHeight: 2,
+                      minHeight: 4,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: AppTheme.spacingM),
-              Icon(Icons.chevron_right, color: AppColors.textTertiary),
-            ],
-          ),
+            ),
+            const SizedBox(width: AppTheme.spacingM),
+            Icon(Icons.chevron_right, color: AppColors.textTertiary),
+          ],
         ),
       ),
     );
@@ -322,13 +359,10 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GlassContainer(
       padding: const EdgeInsets.all(AppTheme.spacingM),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : AppColors.surface,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        boxShadow: AppTheme.shadowSmall,
-      ),
+      color: isDark ? AppColors.darkSurface : Colors.white,
+      opacity: 0.5,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -376,42 +410,37 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return GlassContainer(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(AppTheme.spacingM),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : AppColors.surface,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          boxShadow: AppTheme.shadowSmall,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 24),
+      padding: const EdgeInsets.all(AppTheme.spacingM),
+      color: isDark ? AppColors.darkSurface : Colors.white,
+      opacity: 0.5,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const Spacer(),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const Spacer(),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: Theme.of(context).textTheme.bodySmall,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }

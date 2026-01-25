@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/home/screens/home_screen.dart';
+import '../../features/settings/screens/settings_screen.dart';
+import '../../features/subscription/screens/subscription_screen.dart';
 import '../../features/library/screens/library_screen.dart';
 import '../../features/vocabulary/screens/vocabulary_list_screen.dart';
 import '../../features/vocabulary/screens/flashcard_screen.dart';
@@ -76,7 +78,7 @@ class AppRouter {
       GoRoute(
         path: '/flashcards',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => const MaterialPage(
+        pageBuilder: (context, state) => MaterialPage(
           fullscreenDialog: true,
           child: FlashcardScreen(),
         ),
@@ -85,7 +87,7 @@ class AppRouter {
       GoRoute(
         path: '/games/listening',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => const MaterialPage(
+        pageBuilder: (context, state) => MaterialPage(
           fullscreenDialog: true,
           child: ListeningQuizScreen(),
         ),
@@ -93,7 +95,7 @@ class AppRouter {
       GoRoute(
         path: '/games/puzzle',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => const MaterialPage(
+        pageBuilder: (context, state) => MaterialPage(
           fullscreenDialog: true,
           child: WordPuzzleScreen(),
         ),
@@ -101,7 +103,7 @@ class AppRouter {
       GoRoute(
         path: '/games/fill',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => const MaterialPage(
+        pageBuilder: (context, state) => MaterialPage(
           fullscreenDialog: true,
           child: FillBlankScreen(),
         ),
@@ -109,9 +111,25 @@ class AppRouter {
       GoRoute(
         path: '/games/match',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => const MaterialPage(
+        pageBuilder: (context, state) => MaterialPage(
           fullscreenDialog: true,
           child: MatchGameScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/settings',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => MaterialPage(
+          fullscreenDialog: true,
+          child: SettingsScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/subscription',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => MaterialPage(
+          fullscreenDialog: true,
+          child: SubscriptionScreen(),
         ),
       ),
     ],

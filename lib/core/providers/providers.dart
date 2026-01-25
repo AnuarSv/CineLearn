@@ -5,6 +5,8 @@ import '../services/oxford_dictionary_service.dart';
 import '../services/dictionary_cache_service.dart';
 import '../services/srt_parser_service.dart';
 import '../services/video_processing_service.dart';
+export 'user_preferences_provider.dart';
+export '../services/share_service.dart';
 
 /// Provider for the AppDatabase instance
 final databaseProvider = Provider<AppDatabase>((ref) {

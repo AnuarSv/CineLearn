@@ -54,10 +54,12 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
       return false;
     });
 
-    // Pre-initialize next controller if not exists
-    final nextIndex = _currentPage + 1;
-    if (nextIndex < _clips.length && !_controllers.containsKey(nextIndex)) {
-      _initControllerAt(nextIndex);
+    // Pre-initialize next 2 controllers for smoothness
+    for (int i = 1; i <= 2; i++) {
+      final nextIndex = _currentPage + i;
+      if (nextIndex < _clips.length && !_controllers.containsKey(nextIndex)) {
+        _initControllerAt(nextIndex);
+      }
     }
   }
 
@@ -230,13 +232,13 @@ class _ReelController {
   }
 }
 
-class _ReelItem extends StatelessWidget {
+class _ReelItem extends ConsumerWidget {
   final _ReelController controller;
 
   const _ReelItem({required this.controller});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final word = controller.word;
     final videoController = controller.videoController;
 
@@ -336,6 +338,39 @@ class _ReelItem extends StatelessWidget {
               ],
             ),
           ),
+
+        // Side Actions
+        Positioned(
+          right: 16,
+          bottom: 100,
+          child: Column(
+            children: [
+              _ReelActionButton(
+                icon: Icons.share_rounded,
+                label: 'Share',
+                onTap: () {
+                  final currentWord = word;
+                  if (currentWord != null) {
+                    final shareService = ref.read(shareServiceProvider);
+                    shareService.shareReelCard(
+                      currentWord.word,
+                      currentWord.definition ?? 'No definition',
+                      controller.clip.clipPath ?? '',
+                    );
+                  }
+                },
+              ).animate().fadeIn(delay: 300.ms).slideX(begin: 0.2),
+              
+              const SizedBox(height: 20),
+              
+              _ReelActionButton(
+                icon: Icons.favorite_border_rounded,
+                label: 'Like',
+                onTap: () {}, // TODO: Implement favorites
+              ).animate().fadeIn(delay: 400.ms).slideX(begin: 0.2),
+            ],
+          ),
+        ),
 
         // Progress bar
         Positioned(
@@ -480,6 +515,48 @@ class _EmptyState extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ReelActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ReelActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.glassBackgroundStrong,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white24, width: 1),
+            ),
+            child: Icon(icon, color: Colors.white, size: 28),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              shadows: [Shadow(color: Colors.black45, blurRadius: 2)],
+            ),
+          ),
+        ],
       ),
     );
   }
