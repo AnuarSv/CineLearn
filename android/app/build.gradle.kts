@@ -45,3 +45,7 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // implementation("com.github.Edsuns.AdblockAndroid:ad-filter:0.9.1") // Removed
+}
