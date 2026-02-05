@@ -10,8 +10,10 @@ import '../../../app/theme/colors.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/providers.dart';
-import '../../../core/services/video_processing_service.dart';
 import '../../../data/database/app_database.dart';
+import '../../../core/models/subtitle_track.dart';
+
+import '../../../app/widgets/glass_container.dart';
 
 /// Library screen for managing uploaded videos
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -316,6 +318,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       )).toList();
 
       await db.insertSubtitles(videoId, companions);
+
+      // Генерируем начальные клипы для Reels (TikTok-режим)
+      // Берем 10 случайных фраз для затравки
+      if (entries.length > 10) {
+        final random = DateTime.now().millisecondsSinceEpoch;
+        final selected = (List.from(entries)..shuffle()).take(10);
+        
+        for (final entry in selected) {
+          final clipId = const Uuid().v4();
+          await db.into(db.reviewClips).insert(ReviewClipsCompanion(
+            id: drift.Value(clipId),
+            vocabularyId: const drift.Value('initial_clip'),
+            videoId: drift.Value(videoId),
+            clipStartMs: drift.Value(entry.startTime.inMilliseconds - 1000), // запас 1 сек
+            clipEndMs: drift.Value(entry.endTime.inMilliseconds + 1000),
+            createdAt: drift.Value(DateTime.now().millisecondsSinceEpoch),
+          ));
+        }
+      }
     } catch (e) {
       debugPrint('Error importing subtitles: $e');
     }

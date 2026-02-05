@@ -70,9 +70,11 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) {
           final videoId = state.pathParameters['videoId']!;
+          final type = state.uri.queryParameters['type'] ?? 'local';
+          final subsUrl = state.uri.queryParameters['subsUrl'];
           return MaterialPage(
             fullscreenDialog: true,
-            child: VideoPlayerScreen(videoId: videoId),
+            child: VideoPlayerScreen(videoId: videoId, type: type, subsUrl: subsUrl),
           );
         },
       ),

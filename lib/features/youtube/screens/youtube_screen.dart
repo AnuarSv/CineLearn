@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'dart:collection';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/services/youtube_extractor_service.dart';
+import '../../../app/theme/colors.dart';
 
 class YouTubeScreen extends StatefulWidget {
   const YouTubeScreen({super.key});
@@ -12,112 +13,78 @@ class YouTubeScreen extends StatefulWidget {
 
 class _YouTubeScreenState extends State<YouTubeScreen> {
   InAppWebViewController? _webViewController;
-  bool _isLoading = true;
-  double _progress = 0;
+  String? _sniffedSubtitleUrl;
+  String? _currentVideoId;
+  bool _canOpen = false;
 
-  // uBlock-like script for YouTube (skips ads, hides overlays)
-  static const String _adBlockScript = """
-    (function() {
-        const skipAds = () => {
-            // Click "Skip Ad" buttons
-            const skipButton = document.querySelector('.ytp-ad-skip-button, .ytp-ad-overlay-close-button');
-            if (skipButton) {
-                skipButton.click();
-                console.log('YouTube Ad: Skipped via button click.');
-            }
+  void _onUrlChanged(WebUri? url) {
+    if (url == null) return;
+    final videoId = _extractVideoId(url.toString());
+    if (videoId != _currentVideoId) {
+      setState(() {
+        _currentVideoId = videoId;
+        _sniffedSubtitleUrl = null; // Сбрасываем старую ссылку
+        _canOpen = videoId != null;
+      });
+    }
+  }
 
-            // Fast-forward video ads
-            const videoPlayer = document.querySelector('video');
-            const adShowing = document.querySelector('.ad-showing');
-
-            if (adShowing && videoPlayer) {
-                if (!videoPlayer.ended && videoPlayer.duration > 0) {
-                    videoPlayer.currentTime = videoPlayer.duration;
-                    console.log('YouTube Ad: Fast-forwarded.');
-                }
-            }
-
-            // Hide ad containers
-            const adSelectors = [
-                '#player-ads',
-                'ytd-action-companion-ad-renderer',
-                '.ytp-ad-overlay-slot',
-                'ytd-promoted-sparkles-web-renderer',
-                'ytd-display-ad-renderer',
-                '#masthead-ad'
-            ];
-            
-            adSelectors.forEach(selector => {
-                const el = document.querySelector(selector);
-                if (el && el.style.display !== 'none') {
-                    el.style.display = 'none';
-                }
-            });
-        };
-        setInterval(skipAds, 500); // Check every 500ms
-    })();
-  """;
+  String? _extractVideoId(String url) {
+    if (url.contains('v=')) return url.split('v=')[1].split('&')[0];
+    if (url.contains('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
+    if (url.contains('shorts/')) return url.split('shorts/')[1].split('?')[0];
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            InAppWebView(
-              initialUrlRequest: URLRequest(url: WebUri("https://m.youtube.com")),
-              initialSettings: InAppWebViewSettings(
-                mediaPlaybackRequiresUserGesture: false,
-                allowsInlineMediaPlayback: true,
-                iframeAllowFullscreen: true,
-                userAgent: "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
-                javaScriptEnabled: true,
-                transparentBackground: true,
-              ),
-              initialUserScripts: UnmodifiableListView<UserScript>([
-                UserScript(
-                  source: _adBlockScript,
-                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
+      appBar: AppBar(
+        title: const Text('YouTube Browser'),
+        backgroundColor: AppColors.darkSurface,
+        actions: [
+          if (_canOpen)
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Передаем ID видео и (если поймали) прямую ссылку на сабы
+                  final encodedSubs = _sniffedSubtitleUrl != null 
+                      ? Uri.encodeComponent(_sniffedSubtitleUrl!) 
+                      : '';
+                  context.push('/player/${_currentVideoId!}?type=youtube&subsUrl=$encodedSubs');
+                },
+                icon: const Icon(Icons.play_circle_fill),
+                label: Text(_sniffedSubtitleUrl != null ? 'Open with Subs' : 'Open in Player'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _sniffedSubtitleUrl != null ? Colors.green : AppColors.accent,
                 ),
-              ]),
-              onWebViewCreated: (controller) {
-                _webViewController = controller;
-              },
-              onLoadStart: (controller, url) {
-                setState(() => _isLoading = true);
-              },
-              onLoadStop: (controller, url) {
-                setState(() => _isLoading = false);
-              },
-              onProgressChanged: (controller, progress) {
-                setState(() => _progress = progress / 100);
-              },
-              shouldInterceptRequest: (controller, request) async {
-                final url = request.url.toString();
-                // Basic network filtering for known ad domains
-                if (url.contains("doubleclick.net") || 
-                    url.contains("googleadservices.com") || 
-                    url.contains("googlesyndication.com")) {
-                  return WebResourceResponse(); // Block
-                }
-                return null;
-              },
+              ),
             ),
-            if (_isLoading || _progress < 1.0)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: LinearProgressIndicator(
-                  value: _progress,
-                  backgroundColor: Colors.transparent,
-                  color: Colors.red,
-                  minHeight: 2,
-                ),
-              ),
-          ],
+        ],
+      ),
+      body: InAppWebView(
+        initialUrlRequest: URLRequest(url: WebUri("https://m.youtube.com")),
+        initialSettings: InAppWebViewSettings(
+          javaScriptEnabled: true,
+          userAgent: "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
         ),
+        onWebViewCreated: (controller) => _webViewController = controller,
+        onLoadStop: (controller, url) => _onUrlChanged(url),
+        onUpdateVisitedHistory: (controller, url, isReload) => _onUrlChanged(url),
+        
+        // СТРАТЕГИЯ СНИФФЕРА: перехватываем запросы к субтитрам
+        onLoadResource: (controller, resource) {
+          final url = resource.url.toString();
+          if (url.contains('api/timedtext') && url.contains('lang=en')) {
+            print('SNIFFED SUBTITLES: $url');
+            if (mounted) {
+              setState(() {
+                _sniffedSubtitleUrl = url;
+              });
+            }
+          }
+        },
       ),
     );
   }

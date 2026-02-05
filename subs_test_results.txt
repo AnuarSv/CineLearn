@@ -1,0 +1,9 @@
+=== YOUTUBE SUBTITLE LAB TEST 2026 ===
+Video ID: jNQXAC9IVRw
+
+--- Method 1: InnerTube Android Client ---
+SUCCESS: Found 2 tracks!
+First Track URL: https://www.youtube.com/api/timedtext?v=jNQXAC9IVRw&ei=yPKBafmlDdKDi9oPhuPLkAU&opi=112496729&xoaf=5&xowf=1&hl=en&ip=0.0.0.0&ipbits=0&expire=1770149176&sparams=ip,ipbits,expire,v,ei,opi,xoaf&signature=116B60EC99101F44997156479DFD1B8D125F259B.D047E9D8BF12B8C994E144D7BB19536BD049B0D1&key=yt8&lang=en&fmt=srv3
+
+--- Method 2: TimedText Direct ---
+FAILED: Status 200 or empty body

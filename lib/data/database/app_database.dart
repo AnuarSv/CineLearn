@@ -138,6 +138,16 @@ class AppDatabase extends _$AppDatabase {
         .get();
   }
 
+  /// Watch recent videos for real-time updates
+  Stream<List<Video>> watchRecentVideos() {
+    return (select(videos)
+          ..orderBy([
+            (t) => OrderingTerm(expression: t.lastPlayedAt, mode: OrderingMode.desc),
+          ])
+          ..limit(10))
+        .watch();
+  }
+
   /// Insert or update a video
   Future<void> upsertVideo(VideosCompanion video) {
     return into(videos).insertOnConflictUpdate(video);

@@ -1,27 +1,20 @@
 import 'dart:io';
-import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'package:file_picker/file_picker.dart';
-import '../providers/providers.dart';
+import 'video_processing_service.dart';
 
 class ShareService {
   final VideoProcessingService _videoService;
-  
+
   ShareService(this._videoService);
 
-  Future<void> shareText(String text) async {
-    await Share.share(text);
+  Future<void> shareWordClip(String word, String clipPath) async {
+    if (await File(clipPath).exists()) {
+      await Share.shareXFiles([XFile(clipPath)], text: 'Check out this English word: $word');
+    }
   }
 
-  Future<void> shareFile(String filePath, {String? text}) async {
-    final file = XFile(filePath);
-    await Share.shareXFiles([file], text: text);
-  }
-
-  /// Extracts a clip on demand and shares it
   Future<void> shareReelOnDemand({
     required String sourcePath,
     required Duration start,
@@ -30,30 +23,53 @@ class ShareService {
     required String word,
   }) async {
     try {
-      // 1. Generate a temporary clip
-      final clipPath = await _videoService.extractClip(
-        inputPath: sourcePath,
-        start: start,
-        duration: duration,
-        outputFileName: 'share_${DateTime.now().millisecondsSinceEpoch}.mp4',
-      );
+      final List<XFile> filesToShare = [];
+      String shareText = 'Word of the day: "$word"\nFrom: $title';
 
-      if (clipPath != null) {
-        // 2. Share the file
-        await Share.shareXFiles(
-          [XFile(clipPath)],
-          text: 'Check out this word "$word" from "$title" on CineLearn!',
+      // 1. Создаем "Постер" (скриншот с текстом)
+      final posterPath = await _videoService.generateThumbnail(
+        sourcePath,
+        timeMs: start.inMilliseconds + (duration.inMilliseconds ~/ 2), // кадр из середины клипа
+        word: word,
+        contextText: title,
+      );
+      
+      if (posterPath != null && await File(posterPath).exists()) {
+        filesToShare.add(XFile(posterPath));
+      }
+
+      // 2. Подготавливаем видео
+      if (!sourcePath.startsWith('http')) {
+        final videoPath = await _videoService.extractClip(
+          inputPath: sourcePath,
+          start: start,
+          duration: duration,
+          outputFileName: 'reel_${DateTime.now().millisecondsSinceEpoch}.mp4',
         );
+        
+        if (videoPath != null && await File(videoPath).exists()) {
+          filesToShare.add(XFile(videoPath));
+        }
+      } else {
+        // Если YouTube - добавляем ссылку в текст
+        final videoId = sourcePath.contains('v=') ? sourcePath.split('v=')[1].split('&')[0] : '';
+        shareText += '\nWatch here: https://youtu.be/$videoId?t=${start.inSeconds}';
+      }
+
+      // 3. Шарим всё сразу
+      if (filesToShare.isNotEmpty) {
+        await Share.shareXFiles(filesToShare, text: shareText);
+      } else {
+        await Share.share(shareText);
       }
     } catch (e) {
-      print('Error sharing reel: $e');
-      // Fallback
-      await Share.share('Learn "$word" with CineLearn!');
+      debugPrint('Branded share error: $e');
     }
   }
 }
 
 final shareServiceProvider = Provider<ShareService>((ref) {
-  final videoService = ref.read(videoProcessingServiceProvider);
+  final videoService = ref.watch(videoProcessingServiceProvider);
   return ShareService(videoService);
 });
+

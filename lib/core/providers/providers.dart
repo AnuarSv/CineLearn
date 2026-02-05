@@ -7,7 +7,6 @@ import '../services/srt_parser_service.dart';
 import '../services/video_processing_service.dart';
 export 'user_preferences_provider.dart';
 export '../services/share_service.dart';
-export '../services/video_processing_service.dart';
 
 /// Provider for the AppDatabase instance
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -46,9 +45,9 @@ final videosStreamProvider = StreamProvider<List<Video>>((ref) {
 });
 
 /// Provider for the list of recent videos
-final recentVideosProvider = FutureProvider<List<Video>>((ref) {
+final recentVideosProvider = StreamProvider<List<Video>>((ref) {
   final db = ref.watch(databaseProvider);
-  return db.getRecentVideos();
+  return db.watchRecentVideos();
 });
 
 /// Provider for the list of all vocabulary words
