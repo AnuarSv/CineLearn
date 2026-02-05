@@ -5,22 +5,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 import 'package:drift/drift.dart' as drift;
-
 import 'package:uuid/uuid.dart';
+
 import '../../../app/theme/colors.dart';
 import '../../../core/providers/providers.dart';
 import '../../../data/database/app_database.dart' as db;
 import '../../../data/models/subtitle_entry.dart';
-import '../../../data/models/vocabulary_word.dart' as model; // Manual model
+import '../../../data/models/vocabulary_word.dart' as model;
+import '../../../core/services/youtube_extractor_service.dart';
 import '../widgets/subtitle_overlay.dart';
 import '../widgets/word_popup.dart';
 import '../../../app/widgets/glass_container.dart';
 
-/// Video player screen with custom gesture controls
 class VideoPlayerScreen extends ConsumerStatefulWidget {
   final String videoId;
+  final String type; // 'local' or 'youtube'
+  final String? subsUrl;
 
-  const VideoPlayerScreen({super.key, required this.videoId});
+  const VideoPlayerScreen({
+    super.key, 
+    required this.videoId, 
+    this.type = 'local',
+    this.subsUrl,
+  });
 
   @override
   ConsumerState<VideoPlayerScreen> createState() => _VideoPlayerScreenState();
@@ -29,7 +36,7 @@ class VideoPlayerScreen extends ConsumerStatefulWidget {
 class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   VideoPlayerController? _controller;
   
-  db.Video? _videoData;
+  String? _videoTitle;
   List<SubtitleEntry> _subtitles = [];
   SubtitleEntry? _currentSubtitle;
   
@@ -37,14 +44,12 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   bool _showControls = true;
   bool _showSubtitleOverlay = false;
   
-  // For auto-hiding controls
   DateTime? _lastInteraction;
   static const _controlsHideDelay = Duration(seconds: 3);
 
   @override
   void initState() {
     super.initState();
-    // Allow all orientations usage
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -56,7 +61,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
 
   @override
   void dispose() {
-    // Reset to portrait only when leaving player
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -67,6 +71,57 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
   }
 
   Future<void> _loadData() async {
+    if (widget.type == 'youtube') {
+      await _loadYouTubeData();
+    } else {
+      await _loadLocalData();
+    }
+  }
+
+  Future<void> _loadYouTubeData() async {
+    try {
+      final extractor = YouTubeExtractorService();
+      final data = await extractor.extractData(widget.videoId, manualSubsUrl: widget.subsUrl);
+      
+      if (!mounted) return;
+
+      setState(() {
+        _videoTitle = data.title;
+        _subtitles = _processSubtitles(data.subtitles);
+      });
+
+      if (mounted) {
+        final count = _subtitles.length;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(count > 0 ? 'Loaded $count English subtitles' : 'NO ENGLISH SUBTITLES FOUND'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: count > 0 ? AppColors.success : AppColors.error,
+          ),
+        );
+      }
+
+      _controller = VideoPlayerController.networkUrl(Uri.parse(data.videoUrl));
+      await _controller!.initialize();
+      
+      _controller!.addListener(_onVideoPositionChanged);
+      _controller!.play();
+
+      setState(() => _isLoading = false);
+      _startControlsTimer();
+      extractor.dispose();
+    } catch (e) {
+      debugPrint('YouTube Load Error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load YouTube video: $e')),
+        );
+        context.go('/home');
+      }
+    }
+  }
+
+  Future<void> _loadLocalData() async {
     final database = ref.read(databaseProvider);
     final video = await (database.select(database.videos)
       ..where((t) => t.id.equals(widget.videoId))).getSingleOrNull();
@@ -81,22 +136,22 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
       return;
     }
 
-    setState(() => _videoData = video);
+    setState(() => _videoTitle = video.title);
 
-    // Load subtitles
     final dbSubs = await database.getSubtitlesForVideo(video.id);
     if (mounted && dbSubs.isNotEmpty) {
+      final rawSubs = dbSubs.map((s) => SubtitleEntry(
+        index: s.subtitleIndex,
+        startTime: Duration(milliseconds: s.startTimeMs),
+        endTime: Duration(milliseconds: s.endTimeMs),
+        text: s.content,
+      )).toList();
+      
       setState(() {
-        _subtitles = dbSubs.map((s) => SubtitleEntry(
-          index: s.subtitleIndex,
-          startTime: Duration(milliseconds: s.startTimeMs),
-          endTime: Duration(milliseconds: s.endTimeMs),
-          text: s.content,
-        )).toList();
+        _subtitles = _processSubtitles(rawSubs);
       });
     }
 
-    // Initialize video
     final file = File(video.filePath);
     if (!await file.exists()) {
       if (mounted) {
@@ -111,7 +166,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     _controller = VideoPlayerController.file(file);
     await _controller!.initialize();
     
-    // Seek to last position
     if (video.lastPositionMs > 0) {
       await _controller!.seekTo(Duration(milliseconds: video.lastPositionMs));
     }
@@ -125,26 +179,38 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     }
   }
 
+  /// Растягиваем субтитры, чтобы закрыть маленькие дыры (до 3 сек)
+  List<SubtitleEntry> _processSubtitles(List<SubtitleEntry> subs) {
+    if (subs.isEmpty) return [];
+    
+    final List<SubtitleEntry> processed = [];
+    for (int i = 0; i < subs.length; i++) {
+      var current = subs[i];
+      if (i < subs.length - 1) {
+        final next = subs[i + 1];
+        final gap = next.startTime.inMilliseconds - current.endTime.inMilliseconds;
+        
+        // Если пауза между фразами меньше 3 секунд, растягиваем текущую фразу
+        if (gap > 0 && gap < 3000) {
+          current = current.copyWith(
+            endTime: next.startTime - const Duration(milliseconds: 100),
+          );
+        }
+      }
+      processed.add(current);
+    }
+    return processed;
+  }
+
   void _onVideoPositionChanged() {
     if (_controller == null || !_controller!.value.isInitialized || !mounted) return;
 
     final position = _controller!.value.position;
-    final duration = _controller!.value.duration;
-
-    // Update current subtitle
     _updateCurrentSubtitle(position);
 
-    // Save progress every 10 seconds
-    if (position.inSeconds % 10 == 0 && _videoData != null) {
-      ref.read(databaseProvider).updateVideoPosition(_videoData!.id, position.inMilliseconds);
-    }
-
-    // Update duration if not set
-    if (_videoData != null && _videoData!.durationMs == 0 && duration > Duration.zero) {
-      ref.read(databaseProvider).upsertVideo(db.VideosCompanion(
-        id: drift.Value(_videoData!.id),
-        durationMs: drift.Value(duration.inMilliseconds),
-      ));
+    // Только для локальных видео сохраняем прогресс в БД
+    if (widget.type == 'local' && position.inSeconds % 10 == 0) {
+      ref.read(databaseProvider).updateVideoPosition(widget.videoId, position.inMilliseconds);
     }
   }
 
@@ -196,10 +262,21 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
 
     _controller!.pause();
     
-    // Find closest subtitle if current is null
+    // Ищем текущий субтитр. Если нет - ищем ближайший в пределах 5 секунд назад
     if (_currentSubtitle == null) {
       final srtParser = ref.read(srtParserServiceProvider);
-      _currentSubtitle = srtParser.findClosestToPosition(_subtitles, _controller!.value.position);
+      _currentSubtitle = srtParser.findClosestToPosition(
+        _subtitles, 
+        _controller!.value.position,
+      );
+    }
+    
+    // Если всё равно пусто - берем самый последний из списка, который был
+    if (_currentSubtitle == null && _subtitles.isNotEmpty) {
+       _currentSubtitle = _subtitles.lastWhere(
+         (s) => s.endTime <= _controller!.value.position,
+         orElse: () => _subtitles.first,
+       );
     }
     
     setState(() {
@@ -213,20 +290,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     _controller?.play();
   }
 
-  void _seekForward() {
-    if (_controller == null) return;
-    final newPosition = _controller!.value.position + const Duration(seconds: 10);
-    _controller!.seekTo(newPosition);
-    _lastInteraction = DateTime.now();
-  }
-
-  void _seekBackward() {
-    if (_controller == null) return;
-    final newPosition = _controller!.value.position - const Duration(seconds: 10);
-    _controller!.seekTo(newPosition < Duration.zero ? Duration.zero : newPosition);
-    _lastInteraction = DateTime.now();
-  }
-
   void _togglePlayPause() {
     if (_controller == null) return;
     if (_controller!.value.isPlaying) {
@@ -238,10 +301,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     setState(() {});
   }
 
-  // Triggered when user taps a word in the SubtitleOverlay
   void _onWordTapped(String word) {
-    if (_videoData == null) return;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -250,7 +310,7 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
         word: word,
         contextSentence: _currentSubtitle?.text ?? '',
         timestamp: _controller!.value.position,
-        videoId: _videoData!.id,
+        videoId: widget.videoId,
         cacheService: ref.read(dictionaryCacheServiceProvider),
         onClose: () => Navigator.pop(context),
         onSave: (wordObj) => _onSaveWord(wordObj),
@@ -258,7 +318,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
     );
   }
 
-  // Callback from WordPopup to save the word
   Future<void> _onSaveWord(model.VocabularyWord wordObj) async {
     try {
       final database = ref.read(databaseProvider);
@@ -272,32 +331,13 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
         audioUrl: drift.Value(wordObj.audioUrl),
         example: drift.Value(wordObj.example),
         videoId: drift.Value(wordObj.videoId),
-        videoTitle: drift.Value(_videoData?.title ?? wordObj.videoTitle),
+        videoTitle: drift.Value(_videoTitle ?? wordObj.videoTitle),
         timestampMs: drift.Value(wordObj.timestamp.inMilliseconds),
         contextSentence: drift.Value(wordObj.contextSentence),
         savedAt: drift.Value(wordObj.savedAt.millisecondsSinceEpoch),
       );
 
       await database.upsertVocabularyWord(entry);
-
-      // 1. Create a ReviewClip entry (logical)
-      final clipId = const Uuid().v4();
-      final startTimeMs = (wordObj.timestamp.inMilliseconds - 5000).clamp(0, 10000000).toInt();
-      final endTimeMs = (wordObj.timestamp.inMilliseconds + 5000);
-      
-      await database.into(database.reviewClips).insert(db.ReviewClipsCompanion(
-        id: drift.Value(clipId),
-        vocabularyId: drift.Value(wordObj.id),
-        videoId: drift.Value(wordObj.videoId),
-        clipStartMs: drift.Value(startTimeMs),
-        clipEndMs: drift.Value(endTimeMs),
-        createdAt: drift.Value(DateTime.now().millisecondsSinceEpoch),
-      ));
-
-      // 2. Physical extraction disabled per user request ("don't copy")
-      // We will rely on logical clipping (playing original file from startMs to endMs)
-      // This makes saving instant without FFmpeg processing overhead.
-      // _extractPhysicalClip(clipId, wordObj.videoId, startTimeMs, endTimeMs);
 
       if (mounted) {
         Navigator.pop(context);
@@ -311,16 +351,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
       }
     } catch (e) {
       debugPrint('Error saving word: $e');
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save word: $e'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
     }
   }
 
@@ -334,12 +364,8 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
 
   String _formatDuration(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final hours = d.inHours;
     final minutes = d.inMinutes.remainder(60);
     final seconds = d.inSeconds.remainder(60);
-    if (hours > 0) {
-      return '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}';
-    }
     return '${twoDigits(minutes)}:${twoDigits(seconds)}';
   }
 
@@ -379,22 +405,22 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // Video
-                        Center(
-                          child: AspectRatio(
-                            aspectRatio: _controller!.value.aspectRatio,
-                            child: VideoPlayer(_controller!),
+                        Container(
+                          color: Colors.black,
+                          child: Center(
+                            child: _controller!.value.isInitialized && _controller!.value.aspectRatio > 0
+                                ? AspectRatio(
+                                    aspectRatio: _controller!.value.aspectRatio,
+                                    child: VideoPlayer(_controller!),
+                                  )
+                                : const CircularProgressIndicator(color: Colors.white24),
                           ),
                         ),
-
-                        // Controls overlay
                         if (!_showSubtitleOverlay)
                           IgnorePointer(
                             ignoring: !_showControls,
                             child: _buildControlsOverlay(),
                           ),
-
-                        // Subtitle overlay for word selection
                         if (_showSubtitleOverlay && _currentSubtitle != null)
                           SubtitleOverlay(
                             subtitle: _currentSubtitle!,
@@ -419,7 +445,6 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
       child: SafeArea(
         child: Stack(
           children: [
-            // Top bar
             Positioned(
               top: 0,
               left: 16,
@@ -433,14 +458,12 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                   children: [
                     IconButton(
                       onPressed: _exit,
-                      icon: const Icon(Icons.arrow_back, color: Colors.white, size: 24),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
-                        _videoData?.title ?? '',
+                        _videoTitle ?? '',
                         style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -450,69 +473,24 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                 ),
               ),
             ),
-
-            // Center controls
             Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                   // Seek backward
-                  GlassContainer(
-                    padding: const EdgeInsets.all(16),
-                    borderRadius: BorderRadius.circular(50),
-                    color: Colors.black,
-                    opacity: 0.3,
-                    child: IconButton(
-                      onPressed: _seekBackward,
-                      iconSize: 32,
-                      icon: const Icon(Icons.replay_10, color: AppColors.success),
-                      tooltip: 'Rewind 10s',
-                    ),
+              child: GestureDetector(
+                onTap: _togglePlayPause,
+                child: Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.6),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(width: 32),
-                  
-                  // Play/Pause
-                  GestureDetector(
-                    onTap: _togglePlayPause,
-                    child: Container(
-                      width: 84,
-                      height: 84,
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withOpacity(0.6), // Semi-transparent green
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(color: AppColors.success.withOpacity(0.3), blurRadius: 25),
-                        ],
-                        border: Border.all(color: Colors.white30, width: 2),
-                      ),
-                      child: Icon(
-                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 52,
-                      ),
-                    ),
+                  child: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 52,
                   ),
-                  
-                  const SizedBox(width: 32),
-
-                  // Seek forward
-                  GlassContainer(
-                    padding: const EdgeInsets.all(16),
-                    borderRadius: BorderRadius.circular(50),
-                    color: Colors.black,
-                    opacity: 0.3,
-                    child: IconButton(
-                      onPressed: _seekForward,
-                      iconSize: 32,
-                      icon: const Icon(Icons.forward_10, color: AppColors.success),
-                      tooltip: 'Forward 10s',
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-
-            // Bottom bar with progress
             Positioned(
               bottom: 16,
               left: 16,
@@ -524,42 +502,22 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
                 opacity: 0.4,
                 child: Column(
                   children: [
-                    // Progress bar
-                    SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        activeTrackColor: AppColors.success, // Green as requested
-                        inactiveTrackColor: Colors.white24,
-                        thumbColor: AppColors.success,
-                        trackHeight: 4,
-                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                      ),
-                      child: Slider(
-                        value: position.inMilliseconds.toDouble(),
-                        min: 0,
-                        max: duration.inMilliseconds.toDouble().clamp(1, double.infinity),
-                        onChanged: (value) {
-                          _controller!.seekTo(Duration(milliseconds: value.toInt()));
-                          _lastInteraction = DateTime.now();
-                        },
-                      ),
+                    Slider(
+                      value: position.inMilliseconds.toDouble(),
+                      min: 0,
+                      max: duration.inMilliseconds.toDouble().clamp(1, double.infinity),
+                      onChanged: (value) {
+                        _controller!.seekTo(Duration(milliseconds: value.toInt()));
+                        _lastInteraction = DateTime.now();
+                      },
+                      activeColor: AppColors.success,
                     ),
-                    // Time labels
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            _formatDuration(position),
-                            style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
-                          ),
-                          Text(
-                            _formatDuration(duration),
-                            style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_formatDuration(position), style: const TextStyle(color: Colors.white)),
+                        Text(_formatDuration(duration), style: const TextStyle(color: Colors.white)),
+                      ],
                     ),
                   ],
                 ),
@@ -569,33 +527,5 @@ class _VideoPlayerScreenState extends ConsumerState<VideoPlayerScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _extractPhysicalClip(String clipId, String videoId, int startMs, int endMs) async {
-    try {
-      final database = ref.read(databaseProvider);
-      final videoService = ref.read(videoProcessingServiceProvider);
-      
-      final video = await (database.select(database.videos)..where((t) => t.id.equals(videoId))).getSingleOrNull();
-      if (video == null) return;
-
-      final outputPath = await videoService.extractClip(
-        inputPath: video.filePath,
-        start: Duration(milliseconds: startMs),
-        duration: Duration(milliseconds: endMs - startMs),
-        outputFileName: 'clip_$clipId.mp4',
-      );
-
-      if (outputPath != null) {
-        await (database.update(database.reviewClips)..where((t) => t.id.equals(clipId))).write(
-          db.ReviewClipsCompanion(
-            clipPath: drift.Value(outputPath),
-          ),
-        );
-        debugPrint('Physical clip extracted: $outputPath');
-      }
-    } catch (e) {
-      debugPrint('Error extracting physical clip: $e');
-    }
   }
 }

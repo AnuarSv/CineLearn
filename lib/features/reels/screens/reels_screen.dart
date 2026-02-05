@@ -29,15 +29,26 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   @override
   void initState() {
     super.initState();
+    // Force portrait for Reels as they are vertical content
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
     _loadClips();
     _pageController.addListener(_onPageChanged);
   }
 
   void _onPageChanged() {
+    if (!mounted) return;
     final newPage = _pageController.page?.round() ?? 0;
     if (newPage != _currentPage) {
       setState(() => _currentPage = newPage);
       _manageControllers();
+      
+      // Ensure the new page starts playing
+      final controller = _controllers[newPage];
+      if (controller != null && controller.isInitialized) {
+        controller.play();
+      }
     }
   }
 
@@ -52,6 +63,15 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         return true;
       }
       return false;
+    });
+
+    // Pause all but current
+    _controllers.forEach((index, controller) {
+      if (index == _currentPage) {
+        controller.play();
+      } else {
+        controller.pause();
+      }
     });
 
     // Pre-initialize next 2 controllers for smoothness
@@ -88,10 +108,20 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         word: word,
         sourcePath: sourcePath,
       );
-      await controller.initialize();
       
-      if (mounted) {
-        setState(() => _controllers[index] = controller);
+      try {
+        await controller.initialize();
+        if (mounted && !controller.isDisposed) {
+          setState(() => _controllers[index] = controller);
+          // If this is the current page, play it
+          if (index == _currentPage) {
+            controller.play();
+          }
+        } else {
+          controller.dispose();
+        }
+      } catch (e) {
+        debugPrint('Error initializing reel $index: $e');
       }
     }
   }
@@ -106,7 +136,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         _isLoading = false;
       });
       
-      // Initialize first two controllers (async, don't await to show UI fast)
+      // Initialize first two controllers
       if (_clips.isNotEmpty) {
         _initControllerAt(0);
         if (_clips.length > 1) {
@@ -156,8 +186,8 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
       debugPrint('Share error: $e');
     } finally {
       // Resume if still focused
-      if (currentController?.isInitialized == true) {
-        currentController?.play();
+      if (currentController != null && currentController.isInitialized && !currentController.isDisposed) {
+        currentController.play();
       }
     }
   }
@@ -189,14 +219,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         scrollDirection: Axis.vertical,
         itemCount: _clips.length,
         onPageChanged: (index) {
-          // Pause all other controllers, play current
-          _controllers.forEach((i, c) {
-            if (i == index) {
-              c.play();
-            } else {
-              c.pause();
-            }
-          });
+          // Handled by listener for better responsiveness but keeping this empty to avoid conflicts
         },
         itemBuilder: (context, index) {
           final controller = _controllers[index];
@@ -204,6 +227,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
             return _LoadingPlaceholder();
           }
           return _ReelItem(
+            key: ValueKey('reel_${controller.clip.id}'),
             controller: controller,
             onShare: _shareReel,
           );
@@ -219,6 +243,13 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     for (final controller in _controllers.values) {
       controller.dispose();
     }
+    // Re-enable other orientations
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     super.dispose();
   }
 }
@@ -230,6 +261,7 @@ class _ReelController {
   final String sourcePath;
   VideoPlayerController? _videoController;
   bool isInitialized = false;
+  bool isDisposed = false;
 
   _ReelController({
     required this.clip,
@@ -242,9 +274,15 @@ class _ReelController {
   bool get _isUsingPhysicalClip => clip.clipPath != null && sourcePath == clip.clipPath;
 
   Future<void> initialize() async {
+    if (isDisposed) return;
     _videoController = VideoPlayerController.file(File(sourcePath));
     await _videoController!.initialize();
     
+    if (isDisposed) {
+      _videoController?.dispose();
+      return;
+    }
+
     final startAt = _isUsingPhysicalClip ? 0 : clip.clipStartMs;
     await _videoController!.seekTo(Duration(milliseconds: startAt));
     
@@ -254,7 +292,7 @@ class _ReelController {
   }
 
   void _loopListener() {
-    if (_videoController == null || !_videoController!.value.isInitialized) return;
+    if (isDisposed || _videoController == null || !_videoController!.value.isInitialized) return;
     
     final positionMs = _videoController!.value.position.inMilliseconds;
     final startAt = _isUsingPhysicalClip ? 0 : clip.clipStartMs;
@@ -268,14 +306,19 @@ class _ReelController {
   }
 
   void play() {
-    _videoController?.play();
+    if (isInitialized && !isDisposed) {
+      _videoController?.play();
+    }
   }
 
   void pause() {
-    _videoController?.pause();
+    if (isInitialized && !isDisposed) {
+      _videoController?.pause();
+    }
   }
 
   void dispose() {
+    isDisposed = true;
     _videoController?.removeListener(_loopListener);
     _videoController?.dispose();
   }
@@ -285,7 +328,7 @@ class _ReelItem extends ConsumerWidget {
   final _ReelController controller;
   final Function(db.ReviewClip, db.VocabularyWord?) onShare;
 
-  const _ReelItem({required this.controller, required this.onShare});
+  const _ReelItem({super.key, required this.controller, required this.onShare});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -308,26 +351,33 @@ class _ReelItem extends ConsumerWidget {
               controller.play();
             }
           },
-          child: Center(
-            child: AspectRatio(
-              aspectRatio: videoController.value.aspectRatio,
-              child: VideoPlayer(videoController),
+          child: Container(
+            color: Colors.black,
+            child: Center(
+              child: videoController.value.isInitialized && videoController.value.aspectRatio > 0
+                  ? AspectRatio(
+                      aspectRatio: videoController.value.aspectRatio,
+                      child: VideoPlayer(videoController),
+                    )
+                  : const CircularProgressIndicator(color: Colors.white24),
             ),
           ),
         ),
 
         // Gradient overlay
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withOpacity(0.3),
-                Colors.transparent,
-                Colors.black.withOpacity(0.8),
-              ],
-              stops: const [0.0, 0.5, 1.0],
+        IgnorePointer(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.3),
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.8),
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ),
             ),
           ),
         ),
@@ -336,7 +386,7 @@ class _ReelItem extends ConsumerWidget {
         if (word != null)
           Positioned(
             left: 20,
-            bottom: 100,
+            bottom: MediaQuery.of(context).padding.bottom + 80,
             right: 80,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,10 +442,9 @@ class _ReelItem extends ConsumerWidget {
         // Side Actions
         Positioned(
           right: 16,
-          bottom: 100,
+          bottom: MediaQuery.of(context).padding.bottom + 80,
           child: Column(
             children: [
-
               _ReelActionButton(
                 icon: Icons.share_rounded,
                 label: 'Share',
@@ -415,16 +464,20 @@ class _ReelItem extends ConsumerWidget {
 
         // Progress bar
         Positioned(
-          bottom: 0,
+          bottom: MediaQuery.of(context).padding.bottom,
           left: 0,
           right: 0,
           child: ValueListenableBuilder<VideoPlayerValue>(
             valueListenable: videoController,
             builder: (context, value, child) {
               final clipDuration = controller.clip.clipEndMs - controller.clip.clipStartMs;
-              final progress = (value.position.inMilliseconds - controller.clip.clipStartMs) / clipDuration;
+              if (clipDuration <= 0) return const SizedBox.shrink();
+              
+              final currentPos = value.position.inMilliseconds - controller.clip.clipStartMs;
+              final progress = (currentPos / clipDuration).clamp(0.0, 1.0);
+              
               return LinearProgressIndicator(
-                value: progress.clamp(0.0, 1.0),
+                value: progress,
                 backgroundColor: Colors.white24,
                 color: AppColors.primary,
                 minHeight: 3,

@@ -14,6 +14,7 @@ import '../../features/games/screens/listening_quiz_screen.dart';
 import '../../features/games/screens/word_puzzle_screen.dart';
 import '../../features/games/screens/fill_blank_screen.dart';
 import '../../features/games/screens/match_game_screen.dart';
+import '../../features/youtube/screens/youtube_screen.dart';
 import '../shell/app_shell.dart';
 
 /// App router configuration using GoRouter
@@ -69,9 +70,11 @@ class AppRouter {
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) {
           final videoId = state.pathParameters['videoId']!;
+          final type = state.uri.queryParameters['type'] ?? 'local';
+          final subsUrl = state.uri.queryParameters['subsUrl'];
           return MaterialPage(
             fullscreenDialog: true,
-            child: VideoPlayerScreen(videoId: videoId),
+            child: VideoPlayerScreen(videoId: videoId, type: type, subsUrl: subsUrl),
           );
         },
       ),
@@ -130,6 +133,14 @@ class AppRouter {
         pageBuilder: (context, state) => MaterialPage(
           fullscreenDialog: true,
           child: SubscriptionScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/youtube',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => MaterialPage(
+          fullscreenDialog: true,
+          child: YouTubeScreen(),
         ),
       ),
     ],

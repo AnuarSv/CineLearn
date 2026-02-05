@@ -16,7 +16,21 @@ class SubtitleEntry {
 
   /// Extract individual words from subtitle text
   static List<String> _extractWords(String text) {
-    // Remove HTML tags, special characters, keep only words
+    // Check if text contains Japanese characters (Hiragana, Katakana, or Kanji)
+    final containsJapanese = RegExp(r'[\u3040-\u30ff\u4e00-\u9faf]').hasMatch(text);
+
+    if (containsJapanese) {
+      // For Japanese, since there are no spaces, we'll return individual characters
+      // or common patterns. A more advanced solution would need a library like Kuromoji,
+      // but for now, we'll split by character so they remain tappable in the UI.
+      return text
+          .replaceAll(RegExp(r'[^\u3040-\u30ff\u4e00-\u9faf\w]'), '') // Remove punctuation
+          .split('')
+          .where((char) => char.trim().isNotEmpty)
+          .toList();
+    }
+
+    // Standard English/Latin logic
     final cleanText = text
         .replaceAll(RegExp(r'<[^>]*>'), '') // Remove HTML tags
         .replaceAll(RegExp(r"[^\w\s'-]"), '') // Keep letters, numbers, apostrophes, hyphens

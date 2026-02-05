@@ -76,17 +76,23 @@ class SubtitleOverlay extends StatelessWidget {
                   const SizedBox(height: 16),
                   
                   // Words
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 6,
-                    runSpacing: 8,
-                    children: subtitle.words.asMap().entries.map((entry) {
-                      return _TappableWord(
-                        word: entry.value,
-                        index: entry.key,
-                        onTap: () => onWordTap(entry.value),
+                  Builder(
+                    builder: (context) {
+                      final isJapanese = RegExp(r'[\u3040-\u30ff\u4e00-\u9faf]').hasMatch(subtitle.text);
+                      return Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: isJapanese ? 2 : 6,
+                        runSpacing: isJapanese ? 4 : 8,
+                        children: subtitle.words.asMap().entries.map((entry) {
+                          return _TappableWord(
+                            word: entry.value,
+                            index: entry.key,
+                            isJapanese: isJapanese,
+                            onTap: () => onWordTap(entry.value),
+                          );
+                        }).toList(),
                       );
-                    }).toList(),
+                    },
                   ),
                 ],
               ),
@@ -118,11 +124,13 @@ class SubtitleOverlay extends StatelessWidget {
 class _TappableWord extends StatefulWidget {
   final String word;
   final int index;
+  final bool isJapanese;
   final VoidCallback onTap;
 
   const _TappableWord({
     required this.word,
     required this.index,
+    this.isJapanese = false,
     required this.onTap,
   });
 
@@ -144,12 +152,15 @@ class _TappableWordState extends State<_TappableWord> {
       onTapCancel: () => setState(() => _isPressed = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: widget.isJapanese ? 4 : 12, 
+          vertical: widget.isJapanese ? 4 : 8,
+        ),
         decoration: BoxDecoration(
           color: _isPressed
               ? AppColors.accent
               : Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(widget.isJapanese ? 4 : 8),
           border: Border.all(
             color: _isPressed
                 ? AppColors.accent
@@ -161,11 +172,11 @@ class _TappableWordState extends State<_TappableWord> {
           widget.word,
           style: TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: widget.isJapanese ? 22 : 18, // Japanese characters are often complex, better to show larger
             fontWeight: FontWeight.w500,
           ),
         ),
-      ).animate(delay: Duration(milliseconds: 50 * widget.index))
+      ).animate(delay: Duration(milliseconds: (widget.isJapanese ? 10 : 50) * widget.index))
           .fadeIn()
           .slideY(begin: 0.2),
     );
